@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<config>
+<pipeline>
     <variables>
         <variable name="PrimaryDBConnStr" type="string" value="sqlserver://PROD_SERVER:1433?database=master&amp;integrated+security=true&amp;trustServerCertificate=true" />
         <variable name="AnalyticsDBConnStr" type="string" value="sqlserver://PROD_SERVER:1433?database=AdventureWorks_PROD&amp;integrated+security=true&amp;trustServerCertificate=true" />
@@ -51,4 +51,4 @@
             </else>
         </if>
     </scripts>
-</config>
+</pipeline>

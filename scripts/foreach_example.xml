@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<config>
+<pipeline>
     <!-- 1. Define variable containing SQL code to drive the foreach loop -->
 
 
@@ -50,4 +50,4 @@
 
         </foreach>
     </scripts>
-</config>
+</pipeline>

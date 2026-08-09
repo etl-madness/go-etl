@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<config>
+<pipeline>
     <!-- Variable Overrides for Connection Strings and Settings -->
     <variables>
         <!-- MSSQL Connection Overrides -->
@@ -17,4 +17,4 @@
         <variable name="EnableParallelJobs" type="bool" value="true" />
         <variable name="IsMasterDB" type="bool" value="false" />
     </variables>
-</config>
+</pipeline>
