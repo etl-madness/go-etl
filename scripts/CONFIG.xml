@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config>
+    <!-- Variable Overrides for Connection Strings and Settings -->
+    <variables>
+        <!-- MSSQL Connection Overrides -->
+        <variable name="PrimaryDBConnStr" type="string" value="sqlserver://myserver.example.com:1433?database=master&amp;integrated+security=true&amp;trustServerCertificate=true" />
+        <variable name="AnalyticsDBConnStr" type="string" value="sqlserver://myserver.example.com:1433?database=AdventureWorks2022&amp;integrated+security=true&amp;trustServerCertificate=true" />
+
+        <!-- Multi-DB Driver Connection Overrides (for scripts/multi_db_type_example.xml) -->
+        <variable name="PostgresDBConnStr" type="string" value="postgres://user:password@localhost:5432/mydb?sslmode=disable" />
+        <variable name="MySQLDBConnStr" type="string" value="user:password@tcp(127.0.0.1:3306)/mydb" />
+        <variable name="SQLiteDBConnStr" type="string" value="./pipeline_cache.db" />
+        <variable name="OracleDBConnStr" type="string" value="oracle://user:password@localhost:1521/XEPDB1" />
+
+        <!-- Query and Control Flow Variables -->
+        <variable name="GetDatabasesQuery" value="SELECT database_id, name FROM sys.databases WHERE name NOT IN ('master', 'tempdb', 'model', 'msdb')" />
+        <variable name="EnableParallelJobs" type="bool" value="true" />
+        <variable name="IsMasterDB" type="bool" value="false" />
+    </variables>
+</config>

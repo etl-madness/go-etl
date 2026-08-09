@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config>
+    <variables>
+        <variable name="BatchSize" type="int" value="500" />
+    </variables>
+
+    <databases>
+        <!-- MSSQL (Default driver when omitted) -->
+        <database name="mssql_db" driver="sqlserver" connection_string="sqlserver://sa:Password123!@localhost:1433?database=master&amp;trustServerCertificate=true" />
+
+        <!-- PostgreSQL -->
+        <database name="postgres_db" driver="postgres" connection_string="postgres://user:password@localhost:5432/mydb?sslmode=disable" />
+
+        <!-- MySQL -->
+        <database name="mysql_db" driver="mysql" connection_string="user:password@tcp(127.0.0.1:3306)/mydb" />
+
+        <!-- SQLite3 -->
+        <database name="sqlite_db" driver="sqlite3" connection_string="./pipeline_cache.db" />
+
+        <!-- Oracle -->
+        <database name="oracle_db" driver="oracle" connection_string="oracle://user:password@localhost:1521/XEPDB1" />
+    </databases>
+
+    <scripts>
+        <!-- 1. Query PostgreSQL -->
+        <script id="query_pg" language="sql" db="postgres_db">
+            <![CDATA[
+                SELECT id, username FROM users LIMIT 10;
+            ]]>
+        </script>
+
+        <!-- 2. Direct Cross-Database Stream ETL from PostgreSQL to SQLite -->
+        <script id="stream_pg_to_sqlite" language="sql" db="postgres_db" target_db="sqlite_db" target_table="cached_users" batch_size="100">
+            <![CDATA[
+                SELECT id, username FROM users;
+            ]]>
+        </script>
+
+        <!-- 3. Query MySQL -->
+        <script id="query_mysql" language="sql" db="mysql_db">
+            <![CDATA[
+                SELECT id, status FROM orders WHERE status = 'PENDING';
+            ]]>
+        </script>
+
+        <!-- 4. Query Oracle -->
+        <script id="query_oracle" language="sql" db="oracle_db">
+            <![CDATA[
+                SELECT sysdate FROM dual;
+            ]]>
+        </script>
+    </scripts>
+</config>

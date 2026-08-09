@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config>
+    <variables>
+        <variable name="PrimaryDBConnStr" type="string" value="sqlserver://PROD_SERVER:1433?database=master&amp;integrated+security=true&amp;trustServerCertificate=true" />
+        <variable name="AnalyticsDBConnStr" type="string" value="sqlserver://PROD_SERVER:1433?database=AdventureWorks_PROD&amp;integrated+security=true&amp;trustServerCertificate=true" />
+        <variable name="GetActiveRegionsQuery" value="SELECT database_id, name FROM sys.databases" />
+
+        <!-- Variable to hold the check result (defaults to false) -->
+        <variable name="IsMasterDB" type="bool" value="false" />
+    </variables>
+
+    <databases>
+        <database name="primary_db" connection_string="{{PrimaryDBConnStr}}" />
+        <database name="analytics_db" connection_string="{{AnalyticsDBConnStr}}" />
+    </databases>
+
+    <scripts>
+        <!-- 1. Script checks DB_NAME() and saves 'true' or 'false' into 'IsMasterDB' -->
+        <script id="CheckIfMaster" language="sql" db="primary_db" output_var="IsMasterDB">
+            <![CDATA[
+            SELECT CASE WHEN DB_NAME() = 'master' THEN 'true' ELSE 'false' END AS is_master;
+            ]]>
+        </script>
+
+        <!-- 2. Conditional check using the dynamically populated 'IsMasterDB' variable -->
+        <if var="IsMasterDB" equals="true">
+            <then>
+                <script id="LogMasterNotice" language="sql" db="primary_db">
+                    <![CDATA[
+                    SELECT 'Connected to master database. Running master-level tasks...' AS notice;
+                    ]]>
+                </script>
+
+                <foreach id="RegionLoop" language="sql" db="primary_db" var="GetActiveRegionsQuery">
+                    <group id="ProcessRegionGroup">
+                        <script id="LogRegionSQL" language="sql" db="primary_db">
+                            <![CDATA[
+                            SELECT 'Processing database ID: {{database_id}}, Name: {{name}}' AS current_status;
+                            ]]>
+                        </script>
+                    </group>
+                </foreach>
+            </then>
+
+            <else>
+                <script id="LogNonMasterNotice" language="sql" db="primary_db">
+                    <![CDATA[
+                    SELECT 'Not connected to master. Skipping sys.databases loop.' AS notice;
+                    ]]>
+                </script>
+            </else>
+        </if>
+    </scripts>
+</config>

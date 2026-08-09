@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config>
+    <!-- 1. Define variable containing SQL code to drive the foreach loop -->
+
+
+    <variables>
+        <variable name="PrimaryDBConnStr" type="string" value="sqlserver://PROD_SERVER:1433?database=PROTO_PROD&amp;integrated+security=true&amp;trustServerCertificate=true" />
+        <variable name="AnalyticsDBConnStr" type="string" value="sqlserver://PROD_SERVER:1433?database=AdventureWorks_PROD&amp;integrated+security=true&amp;trustServerCertificate=true" />
+        <variable name="GetActiveRegionsQuery" value="SELECT database_id, name FROM sys.databases" />
+    </variables>
+
+    <!-- Databases referencing variable placeholders -->
+    <databases>
+        <database name="primary_db" connection_string="{{PrimaryDBConnStr}}" />
+        <database name="analytics_db" connection_string="{{AnalyticsDBConnStr}}" />
+    </databases>
+
+
+    <scripts>
+        <!-- 2. Foreach loop uses 'var' attribute to execute code stored in 'GetActiveRegionsQuery' -->
+        <foreach id="RegionLoop" language="sql" db="primary_db" var="GetActiveRegionsQuery">
+
+            <!-- Group executed once per row -->
+            <group id="ProcessRegionGroup">
+
+                <!-- SQL script referencing loop variables via {{col_name}} -->
+                <script id="LogRegionSQL" language="sql" db="primary_db">
+                    <![CDATA[
+                    SELECT 'Processing database ID: {{database_id}}, Name: {{name}}' AS current_status;
+                ]]>
+                </script>
+
+                <!-- Go script referencing loop variables via host/vars export -->
+                <script id="LogRegionGo" language="go">
+                    <![CDATA[
+                    package main
+                    import (
+                        "fmt"
+                        "host/vars/vars"
+                    )
+                    func main() {
+                        regionID := vars.GetString("database_id")
+                        regionName := vars.GetString("name")
+                        loopIdx := vars.GetInt("LOOP_INDEX")
+                        fmt.Printf("[Iteration %d] Go script processing %s (ID: %s)\n", loopIdx, regionName, regionID)
+                    }
+                ]]>
+                </script>
+            </group>
+
+        </foreach>
+    </scripts>
+</config>

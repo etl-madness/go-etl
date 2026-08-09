@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config>
+    <variables>
+        <variable name="PrimaryDBConnStr" type="string" value="sqlserver://PROD_SERVER:1433?database=PROTO_PROD&amp;integrated+security=true&amp;trustServerCertificate=true" />
+        <variable name="AnalyticsDBConnStr" type="string" value="sqlserver://PROD_SERVER:1433?database=AdventureWorks_PROD&amp;integrated+security=true&amp;trustServerCertificate=true" />
+    </variables>
+
+    <!-- Databases referencing variable placeholders -->
+    <databases>
+        <database name="primary_db" connection_string="{{PrimaryDBConnStr}}" />
+        <database name="analytics_db" connection_string="{{AnalyticsDBConnStr}}" />
+    </databases>
+
+    <scripts>
+        <!-- Step 1: Script A runs and stores its output ('true' or 'false') into 'ScriptAResult' -->
+        <script id="ScriptA" language="sql" db="primary_db" output_var="ScriptAResult">
+            <![CDATA[
+            SELECT CASE WHEN COUNT(*) > 0 THEN 'true' ELSE 'false' END FROM sys.databases;
+        ]]>
+        </script>
+
+        <!-- Option 1: Explicit <if> / <then> / <else> branching -->
+        <if var="ScriptAResult" equals="true">
+            <then>
+                <group id="GroupA">
+                    <script id="GroupA_Step1" language="sql" db="primary_db">
+                        <![CDATA[ SELECT 'Executing Group A - Step 1' AS status; ]]>
+                    </script>
+                    <script id="GroupA_Step2" language="go">
+                        <![CDATA[
+                        package main
+                        import "fmt"
+                        func main() { fmt.Println("Executing Group A - Go Step") }
+                    ]]>
+                    </script>
+                </group>
+            </then>
+            <else>
+                <group id="GroupB">
+                    <script id="GroupB_Step1" language="sql" db="primary_db">
+                        <![CDATA[ SELECT 'Executing Group B - Step 1' AS status; ]]>
+                    </script>
+                </group>
+            </else>
+        </if>
+
+        <!-- Option 2: Conditional attributes directly on <group> -->
+        <group id="GroupA_Alternative" if_var="ScriptAResult" if_equals="true">
+            <script id="GroupA_Alt_Step1" language="sql" db="primary_db">
+                <![CDATA[ SELECT 'Direct Group A Executed' AS status; ]]>
+            </script>
+        </group>
+    </scripts>
+</config>

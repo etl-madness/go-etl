@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config>
+    <!-- 1. GLOBAL VARIABLES -->
+    <variables>
+        <variable name="PrimaryDBConnStr" type="string" value="sqlserver://PROD_SERVER:1433?database=master&amp;integrated+security=true&amp;trustServerCertificate=true" />
+        <variable name="AnalyticsDBConnStr" type="string" value="sqlserver://PROD_SERVER:1433?database=AdventureWorks_PROD&amp;integrated+security=true&amp;trustServerCertificate=true" />
+        <variable name="GetDatabasesQuery" value="SELECT database_id, name FROM sys.databases WHERE name NOT IN ('master', 'tempdb', 'model', 'msdb')" />
+        <variable name="EnableParallelJobs" type="bool" value="true" />
+        <variable name="IsMasterDB" type="bool" value="false" />
+    </variables>
+
+    <!-- 2. DATABASES (Using variable placeholders {{VarName}}) -->
+    <databases>
+        <database name="primary_db" connection_string="{{PrimaryDBConnStr}}" />
+        <database name="analytics_db" connection_string="{{AnalyticsDBConnStr}}" />
+    </databases>
+
+    <!-- 3. PIPELINE EXECUTION ENGINE -->
+    <scripts>
+        <!-- Step A: SQL Script checks condition and captures result in 'IsMasterDB' output variable -->
+        <script id="CheckIfMaster" language="sql" db="primary_db" output_var="IsMasterDB">
+            <![CDATA[
+            SELECT CASE WHEN DB_NAME() = 'master' THEN 'true' ELSE 'false' END AS is_master;
+            ]]>
+        </script>
+
+        <!-- Step B: Conditional Execution Block -->
+        <if var="IsMasterDB" equals="true">
+            <then>
+                <!-- Log status via embedded Go script using host/vars module -->
+                <script id="LogMasterStatus" language="go">
+                    <![CDATA[
+                    package main
+                    import (
+                        "fmt"
+                        "host/vars/vars"
+                    )
+                    func main() {
+                        fmt.Printf("Connected to master DB. EnableParallelJobs flag = %v\n", vars.GetBool("EnableParallelJobs"))
+                    }
+                    ]]>
+                </script>
+
+                <!-- Step C: Parallel Execution Block (Capped at 2 concurrent worker threads) -->
+                <parallel max_threads="2">
+
+                    <!-- Parallel Task 1: SQL Cleanup Query -->
+                    <script id="Task1_SqlCleanup" language="sql" db="analytics_db">
+                        <![CDATA[
+                        SELECT 'Running log cleanup in parallel branch 1...' AS status;
+                        ]]>
+                    </script>
+
+                    <!-- Parallel Task 2: Embedded Go Async Task -->
+                    <script id="Task2_GoWorker" language="go">
+                        <![CDATA[
+                        package main
+                        import (
+                            "fmt"
+                            "time"
+                        )
+                        func main() {
+                            fmt.Println("Running Go worker thread in parallel branch 2...")
+                            time.Sleep(100 * time.Millisecond)
+                        }
+                        ]]>
+                    </script>
+
+                    <!-- Parallel Task 3: Streaming ETL directly from primary_db to analytics_db -->
+                    <script id="Task3_StreamETL" language="sql" db="primary_db" target_db="analytics_db" target_table="Person.test_demo" batch_size="500">
+                        <![CDATA[
+                        SELECT database_id, name FROM sys.databases;
+                        ]]>
+                    </script>
+
+                </parallel>
+
+                <!-- Step D: Foreach Loop executing per row returned by GetDatabasesQuery -->
+                <foreach id="IterateDatabases" language="sql" db="primary_db" var="GetDatabasesQuery">
+                    <group id="DatabaseProcessGroup">
+
+                        <!-- SQL Script accessing loop variable via {{column_name}} -->
+                        <script id="ProcessDB_SQL" language="sql" db="primary_db">
+                            <![CDATA[
+                            SELECT 'Processing DB ID {{database_id}} - Name: {{name}}' AS current_db;
+                            ]]>
+                        </script>
+
+                        <!-- Go Script accessing loop variable via host/vars export -->
+                        <script id="ProcessDB_Go" language="go">
+                            <![CDATA[
+                            package main
+                            import (
+                                "fmt"
+                                "host/vars/vars"
+                            )
+                            func main() {
+                                dbName := vars.GetString("name")
+                                idx := vars.GetInt("LOOP_INDEX")
+                                fmt.Printf("[Loop #%d] Go script processing database: %s\n", idx, dbName)
+                            }
+                            ]]>
+                        </script>
+
+                    </group>
+                </foreach>
+            </then>
+
+            <else>
+                <!-- Executed only if 'IsMasterDB' evaluated to false -->
+                <script id="NotMasterAlert" language="sql" db="primary_db">
+                    <![CDATA[
+                    SELECT 'Skipping processing because database is not master.' AS alert;
+                    ]]>
+                </script>
+            </else>
+        </if>
+    </scripts>
+</config>

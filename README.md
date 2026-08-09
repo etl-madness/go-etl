@@ -1,0 +1,423 @@
+# XML Script Execution Engine (go-etl)
+
+[![Go Version](https://img.shields.io/badge/Go-1.20%2B-blue.svg)](https://golang.org)
+[![Databases](https://img.shields.io/badge/Databases-SQLServer%20|%20Postgres%20|%20MySQL%20|%20SQLite%20|%20Oracle-blue.svg)](#supported-database-engines)
+[![XML Schema](https://img.shields.io/badge/XML%20Schema-XSD%20Valid-green.svg)](schema.xsd)
+[![Interpreter](https://img.shields.io/badge/Go%20Interpreter-Yaegi-orange.svg)](https://github.com/traefik/yaegi)
+
+An enterprise-grade, XML-driven multi-database pipeline executor and ETL engine written in Go. This tool enables developers to define complex, high-performance data processing pipelines that seamlessly combine interpreted Go scripts (executed in-memory via Yaegi) and SQL queries across multiple heterogeneous database engines.
+
+With built-in support for environment-specific configuration overrides, strongly-typed variables, parallel execution, iterative looping, logical branching, and streaming cross-database ETL channels, this engine is optimized for robust, fail-fast, and memory-efficient data movements.
+
+---
+
+## Architecture Overview
+
+The engine parses pipeline definitions into an Abstract Syntax Tree (AST), validates the XML schema and logical relationships, and executes the pipeline in strict order or concurrent branches.
+
+```mermaid
+graph TD
+    XML[scripts.xml] -->|Parse & Merge| Config[CONFIG.xml Overrides]
+    Config --> Parse[XML Parser]
+    Parse --> XSD{XSD Validation <br/> via xmllint}
+    XSD -->|Pass| AST{Semantic AST <br/> Quality Gate}
+    AST -->|Pass| Exec[Pipeline Executor]
+    
+    subgraph Execution Engines
+        Exec --> SQL[Multi-Engine SQL Query Executor]
+        Exec --> Go[Yaegi Go Interpreter]
+    end
+
+    SQL -->|Cross-DB Stream| Stream[Streaming ETL Stream]
+    Go -->|host/vars & host/db| Context[Shared Pipeline Context]
+    
+    Exec -->|Fail Fast / Success| Report[Structured JSON Report]
+```
+
+---
+
+## Supported Database Engines
+
+The engine natively registers and supports multiple database drivers. You can configure any mixture of the following drivers within the same pipeline:
+
+| Driver Attribute Value | DB Engine | Go Underling Driver | Placeholders |
+| :--- | :--- | :--- | :--- |
+| `sqlserver`, `mssql` | Microsoft SQL Server | `github.com/microsoft/go-mssqldb` | `@p1, @p2, ...` |
+| `postgres`, `postgresql` | PostgreSQL | `github.com/lib/pq` | `$1, $2, ...` |
+| `mysql` | MySQL | `github.com/go-sql-driver/mysql` | `?, ?, ...` |
+| `sqlite`, `sqlite3` | SQLite | `modernc.org/sqlite` | `?, ?, ...` |
+| `oracle` | Oracle Database | `github.com/sijms/go-ora/v2` | `:1, :2, ...` |
+
+> [!NOTE]
+> If the `driver` attribute is omitted on a `<database>` definition, it defaults to **`sqlserver`** for backward compatibility.
+
+---
+
+## Feature Highlights
+
+* 🚀 **Heterogeneous Dual-Engine Pipeline**: Run interpreted **Go scripts** dynamically in-memory via Yaegi alongside native **multi-database SQL queries** (Postgres, MySQL, SQLite, Oracle, MSSQL) within a single, unified orchestration.
+* 🎛️ **Advanced Control Flow**:
+  * **`<if>`/`<then>`/`<else>`**: Robust logical branching based on dynamic variable values.
+  * **`<parallel>`**: Execute tasks concurrently with thread-pool size limits (`max_threads`), complete with automatic propagation of errors.
+  * **`<foreach>` (or `<loop>`)**: Iterate over query results, automatically setting column values as script variables per iteration.
+  * **`<group>`**: Organize related steps with block-level conditional execution.
+* 📦 **Environment-Safe Configuration**: Keep core pipelines (`--file`) separate from environment-specific configuration overrides (`--config`) without relying on brittle OS environment variables.
+* 🧬 **XSD & AST Quality Gates**:
+  * Optional XML Schema (`.xsd`) validation via `xmllint` to ensure syntactic correctness.
+  * Comprehensive semantic checks (duplicate script IDs, connection validity, empty code bodies) executed prior to launching any scripts.
+* 🌊 **Memory-Safe Streaming ETL**:
+  * **Cross-DB Declarative SQL Streaming**: Instantly copy query results between heterogeneous databases (e.g., PostgreSQL query streamed directly to SQLite) without writing Go code by specifying `target_db` and `target_table` on a SQL script block. The engine automatically maps parameters and placeholders based on the destination's driver syntax.
+  * **Programmatic Go Streaming**: Stream millions of records line-by-line using the `db.StreamETL` host API, utilizing parameterized batch inserts to avoid memory bloat and string limits.
+* 🔗 **Dynamic Connection String Templating**: Define variables and automatically inject them into database connection strings using `{{VarName}}` placeholders.
+* 🔄 **Cross-Script Data Passing**: Dynamically pass outputs between blocks using `output_var` attributes or the implicit `LAST_OUTPUT` context variable.
+* 🛡️ **Fail-Fast sequential execution**: Halts execution immediately if any step encounters a panic, query syntax error, or unhandled Go error, outputting a complete JSON report up to the failure point.
+
+---
+
+## Installation & Prerequisites
+
+### Prerequisites
+* **Go**: Version 1.20 or later.
+* **xmllint**: (Optional) Installed and available in your system path to perform XSD schema validation.
+
+### Getting Started
+
+1. Clone or download the repository to your local workspace.
+2. Initialize and tidy the Go module dependencies:
+
+```bash
+# Install core third-party packages and drivers
+go get github.com/traefik/yaegi
+go get github.com/microsoft/go-mssqldb
+go get github.com/lib/pq
+go get github.com/go-sql-driver/mysql
+go get github.com/sijms/go-ora/v2
+go get modernc.org/sqlite
+
+# Verify & clean dependencies
+go mod tidy
+```
+
+---
+
+## Command Line Interface (CLI)
+
+Run the engine using command line flags to specify your scripts file, schema files, and execution modes:
+
+```bash
+# Basic Execution
+go run main.go --file pipeline.xml
+
+# Execution with Variable Overrides
+go run main.go --file pipeline.xml --config production_config.xml
+
+# Pipeline Validation Only (Does not execute scripts)
+go run main.go --file pipeline.xml --validate
+
+# Full Schema Validation and Execution
+go run main.go --file pipeline.xml --xsd schema.xsd --config CONFIG.xml
+```
+
+### CLI Flag Reference
+
+| Flag | Default | Description |
+| :--- | :--- | :--- |
+| `--file` | `scripts.xml` | Path to the main XML file containing variables, databases, and scripts. |
+| `--config` | `""` | Optional path to an XML file containing environment variable overrides. |
+| `--xsd` | `""` | Optional path to an XSD schema file to run an XML validity check via `xmllint`. |
+| `--validate`| `false` | When true, validates XML schema and semantic structure, then exits with code 0 without executing. |
+
+---
+
+## Configuration Reference & Cheat Sheet
+
+The configuration is structured into three main blocks inside the root `<config>` element: `<variables>`, `<databases>`, and `<scripts>`.
+
+```mermaid
+classDiagram
+    class Config {
+        Variables variables
+        Databases databases
+        Scripts scripts
+    }
+    class Variables {
+        Variable[] variable
+    }
+    class Databases {
+        Database[] database
+    }
+    class Scripts {
+        Script[] script
+        Group[] group
+        Parallel[] parallel
+        If[] if
+        ForEach[] foreach
+    }
+    Config --> Variables
+    Config --> Databases
+    Config --> Scripts
+```
+
+### XML Elements & Attributes
+
+#### `<variable>`
+Defines typed global variables. Can be placed under `<config>` in both the main file and override configuration.
+* `name` (Required): String identifier used to reference the variable.
+* `type` (Optional, defaults to `"string"`): Type of variable (`string`, `int`, `integer`, `bool`, `boolean`, `float`, `double`).
+* `value` (Required): Default value or override value.
+
+#### `<database>`
+Defines a database connection pool.
+* `name` (Required): Unique connection alias used in script blocks.
+* `driver` (Optional, defaults to `"sqlserver"`): Database driver to use. Supported values are: `sqlserver` (or `mssql`), `postgres` (or `postgresql`), `mysql`, `sqlite` (or `sqlite3`), `oracle`.
+* `connection_string` (Required): Database-specific connection string (supports `{{VarName}}` variable expansion; `&` must be escaped as `&amp;`).
+
+#### `<script>`
+Executes code using either the SQL or Go engine.
+* `id` (Optional, defaults to `script_N`): Step identifier.
+* `language` (Required): Language runtime (`sql` or `go`).
+* `db` / `database` (Required for SQL scripts): Target database connection alias.
+* `target_db` (Optional): Destination database connection alias for declarative SQL streaming.
+* `target_table` (Optional): Target table name for declarative SQL-to-SQL streaming.
+* `batch_size` (Optional, defaults to `500`): Chunk size for batch inserts during streaming.
+* `variable` / `var` (Optional): Variable containing code. If specified, overrides the script CDATA body (CDATA is treated as a fallback).
+* `output_var` / `out_var` (Optional): Store query output or script return string in this variable for subsequent pipeline steps.
+
+#### `<group>`
+Combines multiple child nodes.
+* `id` (Optional): Identifier for the group block.
+* `if_var` / `var` (Optional): Variable name to evaluate.
+* `if_equals` / `equals` (Optional): Value to check against. Group executes only if they match.
+
+#### `<parallel>`
+Spawns child nodes concurrently.
+* `max_threads` / `threads` / `concurrency` (Optional, defaults to `4`): Cap on active concurrent worker threads inside this parallel block.
+
+#### `<if>`
+Branching block. Must contain `<then>` and/or `<else>` nodes.
+* `var` / `if_var` (Required): Variable name to check.
+* `equals` / `if_equals` (Optional): Value to check against. If omitted, evaluates the variable as a boolean.
+* `condition` / `cond` (Optional): Evaluates conditional operators like `VarName==value` or `VarName!=value`.
+
+#### `<foreach>` (or `<loop>`)
+Iterates over rows returned by an engine query.
+* `id` (Optional): Foreach identifier.
+* `language` (Optional, defaults to `"sql"`): Language of the driving query.
+* `db` (Required for SQL driving query): Database connection name.
+* `var` (Optional): Variable containing the driving query.
+
+---
+
+## Host Go APIs (Yaegi Context)
+
+Interpreted Go scripts can interact with the engine environment by importing standard host packages.
+
+### Package `host/vars`
+Allows scripts to query, parse, and write pipeline variables.
+* **`vars.Get(name string) interface{}`**: Retrieves raw variable value.
+* **`vars.GetString(name string) string`**: Returns string representation.
+* **`vars.GetInt(name string) int`**: Returns integer representation.
+* **`vars.GetBool(name string) bool`**: Returns boolean value.
+* **`vars.GetFloat(name string) float64`**: Returns floating-point representation.
+
+### Package `host/db`
+Allows scripts to fetch active SQL connections and perform bulk streaming operations.
+* **`db.Get(name string) (*sql.DB, error)`**: Returns the underlying native SQL Server connection pool (`*sql.DB`) for custom queries.
+* **`db.StreamETL(srcDB, query, dstDB, targetTable, batchSize) (int64, error)`**: Efficiently streams rows line-by-line from a source database query, executing chunked batch parameter queries into a target table.
+
+---
+
+## Configuration & Pipeline Examples
+
+### 1. Heterogeneous Multi-Database Setup (`multi_db_type_example.xml`)
+Demonstrates how to configure and query multiple database servers of different types and perform cross-engine streaming.
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<config>
+    <variables>
+        <variable name="BatchSize" type="int" value="500" />
+    </variables>
+
+    <databases>
+        <!-- MSSQL (Default driver when omitted) -->
+        <database name="mssql_db" driver="sqlserver" connection_string="sqlserver://sa:Password123!@localhost:1433?database=master&amp;trustServerCertificate=true" />
+
+        <!-- PostgreSQL -->
+        <database name="postgres_db" driver="postgres" connection_string="postgres://user:password@localhost:5432/mydb?sslmode=disable" />
+
+        <!-- MySQL -->
+        <database name="mysql_db" driver="mysql" connection_string="user:password@tcp(127.0.0.1:3306)/mydb" />
+
+        <!-- SQLite3 -->
+        <database name="sqlite_db" driver="sqlite3" connection_string="./pipeline_cache.db" />
+
+        <!-- Oracle -->
+        <database name="oracle_db" driver="oracle" connection_string="oracle://user:password@localhost:1521/XEPDB1" />
+    </databases>
+
+    <scripts>
+        <!-- 1. Query PostgreSQL -->
+        <script id="query_pg" language="sql" db="postgres_db">
+            <![CDATA[
+                SELECT id, username FROM users LIMIT 10;
+            ]]>
+        </script>
+
+        <!-- 2. Direct Cross-Database Stream ETL from PostgreSQL to SQLite -->
+        <!-- The engine handles the parameter syntax transformation (PostgreSQL's $N vs SQLite's ?) seamlessly -->
+        <script id="stream_pg_to_sqlite" language="sql" db="postgres_db" target_db="sqlite_db" target_table="cached_users" batch_size="100">
+            <![CDATA[
+                SELECT id, username FROM users;
+            ]]>
+        </script>
+
+        <!-- 3. Query MySQL -->
+        <script id="query_mysql" language="sql" db="mysql_db">
+            <![CDATA[
+                SELECT id, status FROM orders WHERE status = 'PENDING';
+            ]]>
+        </script>
+    </scripts>
+</config>
+```
+
+### 2. Variables and Override Configuration (`CONFIG.xml`)
+Allows overriding variables based on environment context (e.g., Development vs. Production) without altering the main pipeline XML structure.
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<config>
+    <!-- Environmental Variable Overrides -->
+    <variables>
+        <variable name="BatchSize" type="int" value="1000" />
+        <variable name="PrimaryDBConnStr" type="string" value="sqlserver://PROD_SERVER:1433?database=master&amp;integrated+security=true&amp;trustServerCertificate=true" />
+        <variable name="AnalyticsDBConnStr" type="string" value="sqlserver://PROD_SERVER:1433?database=AnalyticsDB&amp;integrated+security=true&amp;trustServerCertificate=true" />
+        
+        <!-- Multi-DB Connection String Overrides -->
+        <variable name="PostgresDBConnStr" type="string" value="postgres://PROD_USER:PROD_PASS@prod-db:5432/prod_mydb?sslmode=require" />
+        <variable name="MySQLDBConnStr" type="string" value="prod_user:prod_pass@tcp(prod-mysql-db:3306)/prod_mydb" />
+    </variables>
+</config>
+```
+
+### 3. Iterative Looping (`foreach_example.xml`)
+Queries databases, maps output columns directly into temporary context variables, and executes nested steps once per row.
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<config>
+    <variables>
+        <variable name="PrimaryDBConnStr" type="string" value="sqlserver://PROD_SERVER:1433?database=master&amp;integrated+security=true&amp;trustServerCertificate=true" />
+        <variable name="GetActiveRegionsQuery" value="SELECT database_id, name FROM sys.databases" />
+    </variables>
+
+    <databases>
+        <database name="primary_db" connection_string="{{PrimaryDBConnStr}}" />
+    </databases>
+
+    <scripts>
+        <foreach id="RegionLoop" language="sql" db="primary_db" var="GetActiveRegionsQuery">
+            <group id="ProcessRegionGroup">
+                <!-- Access loop columns via curly braces -->
+                <script id="LogRegionSQL" language="sql" db="primary_db">
+                    <![CDATA[
+                    SELECT 'Processing database ID: {{database_id}}, Name: {{name}}' AS current_status;
+                    ]]>
+                </script>
+
+                <!-- Access loop columns inside Go code via host APIs -->
+                <script id="LogRegionGo" language="go">
+                    <![CDATA[
+                    package main
+                    import (
+                        "fmt"
+                        "host/vars/vars"
+                    )
+                    func main() {
+                        regionID := vars.GetString("database_id")
+                        regionName := vars.GetString("name")
+                        loopIdx := vars.GetInt("LOOP_INDEX")
+                        fmt.Printf("[Iteration %d] Go script processing %s (ID: %s)\n", loopIdx, regionName, regionID)
+                    }
+                    ]]>
+                </script>
+            </group>
+        </foreach>
+    </scripts>
+</config>
+```
+
+### 4. Concurrency (`parallel_example.xml`)
+Implements concurrent task processing with thread-pool size constraints.
+
+```xml
+<parallel max_threads="2">
+    <!-- Parallel Branch 1 -->
+    <script id="Task1_SqlCleanup" language="sql" db="analytics_db">
+        <![CDATA[
+        SELECT 'Running log cleanup in parallel branch 1...' AS status;
+        ]]>
+    </script>
+
+    <!-- Parallel Branch 2 -->
+    <script id="Task2_GoWorker" language="go">
+        <![CDATA[
+        package main
+        import (
+            "fmt"
+            "time"
+        )
+        func main() {
+            fmt.Println("Running Go worker thread in parallel branch 2...")
+            time.Sleep(100 * time.Millisecond)
+        }
+        ]]>
+    </script>
+</parallel>
+```
+
+---
+
+## Best Practices & Temporary Tables
+
+In SQL Server, **local temporary tables** (prefixed with `#`, e.g., `#TempTable`) are bound to the specific database connection and session that created them. 
+
+> [!WARNING]
+> **Why cross-script `#temp` tables fail:**
+> 
+> Each `<script>` block in the XML pipeline retrieves an active connection from the underlying Go `database/sql` connection pool. Once that `<script>` block finishes executing, the connection is released back to the pool, automatically dropping any local `#temp` tables created in that step. Subsequent steps will fail to access them.
+
+### Recommended Workarounds:
+1. **Physical/Global Temporary Tables**: Target physical staging tables (such as standard schema tables `dbo.StagingCopy` or global temp tables `##GlobalTempTable`) when passing data across separate XML script blocks.
+2. **Unified Go Sessions**: Create the `#temp` table, populate it, and execute `db.StreamETL` within a **single** interpreted `<script language="go">` block to ensure operations run in the same session context.
+
+---
+
+## Standard JSON Output Format
+
+When the engine finishes executing, it outputs a clean, machine-readable JSON array to stdout, detailing the success, failure, return codes, and logs of each script block.
+
+```json
+[
+  {
+    "script_id": "setup_target",
+    "return_code": 0,
+    "results_string": "(0 row(s) returned)\n"
+  },
+  {
+    "script_id": "stream_sql",
+    "return_code": 0,
+    "results_string": "Streamed 4 row(s) directly to analytics_db.dbo.DirectStreamAudit\n"
+  }
+]
+```
+
+* **`script_id`**: Corresponding XML script attribute identifier.
+* **`return_code`**: `0` on success, or a descriptive error string if the script failed.
+* **`results_string`**: Raw output, execution metrics, or stdout logs returned by the language engine.
+
+---
+
+## License
+This pipeline execution engine is released under the [MIT License](LICENSE).
