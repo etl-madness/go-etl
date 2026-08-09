@@ -68,7 +68,7 @@ import (
 	"fmt"
 	"log"
 
-	"go-etl/pkg/flow"
+	"github.com/etl-madness/go-etl/pkg/flow"
 )
 
 func main() {
@@ -153,3 +153,11 @@ registryB := flow.NewRegistry()
 go flow.NewExecutor(registryA).Execute(nodesA)
 go flow.NewExecutor(registryB).Execute(nodesB)
 ```
+
+---
+
+## Complete CLI Wrapper Example
+
+For a complete, real-world example of how to orchestrate, validate, and execute pipelines programmatically using this library, check out the root application files:
+- [**`main.go`**](../../main.go): The official, production-ready command line driver that utilizes `pkg/flow` to orchestrate multi-engine data pipelines.
+- [**Root `README.md`**](../../README.md): The main guide covering command-line options, database configuration files, and comparative architecture layouts.

@@ -99,18 +99,18 @@ The engine natively registers and supports multiple database drivers. You can co
 
 ### Getting Started
 
+#### Option A: Programmatic Integration (Public Package)
+You can import and embed the fully modular `flow` pipeline engine directly inside your custom Go applications:
+```bash
+go get github.com/etl-madness/go-etl/pkg/flow@v1.0.0
+```
+See the package-specific [**`pkg/flow/README.md`**](file:///c:/Users/U00001/source/repos/etl-madness/go-etl/pkg/flow/README.md) for full developer integration guides and APIs!
+
+#### Option B: Standalone CLI Runner
 1. Clone or download the repository to your local workspace.
 2. Initialize and tidy the Go module dependencies:
 
 ```bash
-# Install core third-party packages and drivers
-go get github.com/traefik/yaegi
-go get github.com/microsoft/go-mssqldb
-go get github.com/lib/pq
-go get github.com/go-sql-driver/mysql
-go get github.com/sijms/go-ora/v2
-go get modernc.org/sqlite
-
 # Verify & clean dependencies
 go mod tidy
 ```
