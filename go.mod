@@ -1,4 +1,5 @@
-module go-etl
+module github.com/etl-madness/go-etl
+
 
 go 1.26.5
 

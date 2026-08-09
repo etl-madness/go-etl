@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"go-etl/pkg/flow"
+	"github.com/etl-madness/go-etl/pkg/flow"
 )
 
 func main() {
