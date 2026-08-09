@@ -148,11 +148,11 @@ go run main.go --file pipeline.xml --xsd schema.xsd --config CONFIG.xml
 
 ## Configuration Reference & Cheat Sheet
 
-The configuration is structured into three main blocks inside the root `<config>` element: `<variables>`, `<databases>`, and `<scripts>`.
+The configuration is structured into three main blocks inside the root `<pipeline>` element: `<variables>`, `<databases>`, and `<scripts>`.
 
 ```mermaid
 classDiagram
-    class Config {
+    class Pipeline {
         Variables variables
         Databases databases
         Scripts scripts
@@ -170,15 +170,15 @@ classDiagram
         If[] if
         ForEach[] foreach
     }
-    Config --> Variables
-    Config --> Databases
-    Config --> Scripts
+    Pipeline --> Variables
+    Pipeline --> Databases
+    Pipeline --> Scripts
 ```
 
 ### XML Elements & Attributes
 
 #### `<variable>`
-Defines typed global variables. Can be placed under `<config>` in both the main file and override configuration.
+Defines typed global variables. Can be placed under `<pipeline>` in both the main file and override configuration.
 * `name` (Required): String identifier used to reference the variable.
 * `type` (Optional, defaults to `"string"`): Type of variable (`string`, `int`, `integer`, `bool`, `boolean`, `float`, `double`).
 * `value` (Required): Default value or override value.
@@ -251,7 +251,7 @@ Demonstrates how to configure and query multiple database servers of different t
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
-<config>
+<pipeline>
     <variables>
         <variable name="BatchSize" type="int" value="500" />
     </variables>
@@ -296,7 +296,7 @@ Demonstrates how to configure and query multiple database servers of different t
             ]]>
         </script>
     </scripts>
-</config>
+</pipeline>
 ```
 
 ### 2. Variables and Override Configuration (`CONFIG.xml`)
@@ -304,7 +304,7 @@ Allows overriding variables based on environment context (e.g., Development vs. 
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
-<config>
+<pipeline>
     <!-- Environmental Variable Overrides -->
     <variables>
         <variable name="BatchSize" type="int" value="1000" />
@@ -315,7 +315,7 @@ Allows overriding variables based on environment context (e.g., Development vs. 
         <variable name="PostgresDBConnStr" type="string" value="postgres://PROD_USER:PROD_PASS@prod-db:5432/prod_mydb?sslmode=require" />
         <variable name="MySQLDBConnStr" type="string" value="prod_user:prod_pass@tcp(prod-mysql-db:3306)/prod_mydb" />
     </variables>
-</config>
+</pipeline>
 ```
 
 ### 3. Iterative Looping (`foreach_example.xml`)
@@ -323,7 +323,7 @@ Queries databases, maps output columns directly into temporary context variables
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
-<config>
+<pipeline>
     <variables>
         <variable name="PrimaryDBConnStr" type="string" value="sqlserver://PROD_SERVER:1433?database=master&amp;integrated+security=true&amp;trustServerCertificate=true" />
         <variable name="GetActiveRegionsQuery" value="SELECT database_id, name FROM sys.databases" />
@@ -362,7 +362,7 @@ Queries databases, maps output columns directly into temporary context variables
             </group>
         </foreach>
     </scripts>
-</config>
+</pipeline>
 ```
 
 ### 4. Concurrency (`parallel_example.xml`)
