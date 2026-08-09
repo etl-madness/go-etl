@@ -59,11 +59,13 @@ const (
 	NodeIf
 	NodeForEach
 	NodeParallel
+	NodeWhile
 )
 
 type PipelineNode struct {
 	Kind          NodeKind
 	MaxThreads    int
+	MaxIterations int
 	Script        *ScriptItem
 	GroupID       string
 	IfVar         string
@@ -568,6 +570,51 @@ func parseNodeElement(decoder *xml.Decoder, se xml.StartElement, scriptIndex *in
 			ForEachScript: driverScript,
 			Children:      children,
 		}, nil
+
+	case "while":
+		var whileID, ifVar, ifEquals, condition string
+		maxIterations := 1000
+
+		for _, attr := range se.Attr {
+			attrName := strings.ToLower(attr.Name.Local)
+			switch attrName {
+			case "id":
+				whileID = attr.Value
+			case "var", "if_var":
+				ifVar = attr.Value
+			case "equals", "val", "value", "if_val", "if_equals":
+				ifEquals = attr.Value
+			case "condition", "cond":
+				condition = attr.Value
+			case "max_iterations", "max_loops":
+				if m, err := strconv.Atoi(attr.Value); err == nil && m > 0 {
+					maxIterations = m
+				}
+			}
+		}
+
+		if condition != "" && ifVar == "" {
+			ifVar = condition
+		}
+
+		if whileID == "" {
+			whileID = fmt.Sprintf("while_%d", *scriptIndex)
+			(*scriptIndex)++
+		}
+
+		children, err := parseChildrenUntil(decoder, "while", scriptIndex)
+		if err != nil {
+			return nil, err
+		}
+
+		return &PipelineNode{
+			Kind:          NodeWhile,
+			GroupID:       whileID,
+			IfVar:         ifVar,
+			IfEquals:      ifEquals,
+			MaxIterations: maxIterations,
+			Children:      children,
+		}, nil
 	}
 
 	return nil, nil
@@ -709,6 +756,15 @@ func validateAST(nodes []PipelineNode, registeredDBs []DatabaseConfig) error {
 					if !definedDBs[node.ForEachScript.DBName] {
 						errs = append(errs, fmt.Sprintf("foreach '%s' driver query references unregistered database '%s'", node.GroupID, node.ForEachScript.DBName))
 					}
+				}
+				inspect(node.Children)
+
+			case NodeWhile:
+				if node.IfVar == "" {
+					errs = append(errs, fmt.Sprintf("<while> loop '%s' is missing condition/var attributes", node.GroupID))
+				}
+				if len(node.Children) == 0 {
+					errs = append(errs, fmt.Sprintf("<while> loop '%s' contains no child nodes", node.GroupID))
 				}
 				inspect(node.Children)
 
@@ -1144,6 +1200,37 @@ func executeForEachNode(node PipelineNode, results *[]ScriptResult) bool {
 	return false
 }
 
+func executeWhileNode(node PipelineNode, results *[]ScriptResult) bool {
+	iterations := 0
+	maxLimit := node.MaxIterations
+	if maxLimit <= 0 {
+		maxLimit = 1000
+	}
+
+	for evalCondition(node.IfVar, node.IfEquals) {
+		if iterations >= maxLimit {
+			res := ScriptResult{
+				ScriptID:   node.GroupID,
+				ReturnCode: fmt.Sprintf("Exceeded maximum iteration limit (%d)", maxLimit),
+			}
+			appendResult(results, res)
+			return true
+		}
+
+		varMu.Lock()
+		varRegistry["WHILE_INDEX"] = iterations
+		varMu.Unlock()
+
+		if hasErr := executeNodes(node.Children, results); hasErr {
+			return true
+		}
+
+		iterations++
+	}
+
+	return false
+}
+
 func executeParallelNode(node PipelineNode, results *[]ScriptResult) bool {
 	maxThreads := node.MaxThreads
 	if maxThreads <= 0 {
@@ -1220,6 +1307,11 @@ func executeNodes(nodes []PipelineNode, results *[]ScriptResult) bool {
 
 		case NodeForEach:
 			if hasErr := executeForEachNode(node, results); hasErr {
+				return true
+			}
+
+		case NodeWhile:
+			if hasErr := executeWhileNode(node, results); hasErr {
 				return true
 			}
 		}

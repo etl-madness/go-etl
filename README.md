@@ -10,6 +10,23 @@ An enterprise-grade, XML-driven multi-database pipeline executor and ETL engine 
 With built-in support for environment-specific configuration overrides, strongly-typed variables, parallel execution, iterative looping, logical branching, and streaming cross-database ETL channels, this engine is optimized for robust, fail-fast, and memory-efficient data movements.
 
 ---
+## Comparison with SQL Server Integration Services (SSIS)
+
+| Feature / Capability | Go XML Pipeline Engine (`go-etl`) | SQL Server Integration Services (SSIS) |
+| :--- | :--- | :--- |
+| **Architecture & Footprint** | Lightweight, cross-platform compiled Go CLI binary. Zero server installation overhead. | Heavy, server-based ETL runtime (tied to Windows/SQL Server ecosystem and SSIS Catalog). |
+| **Interface / Authoring** | Code-first declarative XML configuration (`scripts.xml`) validated against XSD schemas. | Visual GUI drag-and-drop interface via Visual Studio / SSDT. |
+| **Cross-Platform Support** | Native Linux, macOS, and Windows support with zero dependencies. | Windows-centric runtime environment (Linux supported via SQL Server on Linux with limitations). |
+| **Database Drivers & Cross-DB ETL** | Native pure Go drivers for MSSQL, PostgreSQL, MySQL, SQLite, and Oracle built-in. Direct cross-DB streaming. | Uses OLE DB, ADO.NET, and ODBC driver managers. Cross-DB setup requires explicit connection manager setups. |
+| **Control Flow: Looping** | Supported via `<foreach>` (SQL dataset iteration) and `<while>` (condition-based loops with `max_iterations` caps). | Supported via *Foreach Loop Containers* (files, objects) and *For Loop Containers*. |
+| **Control Flow: Logic & Branching** | `<if>` / `<then>` / `<else>` blocks and `<group>` blocks with variable condition evaluation. | Precedence Constraints (Success, Failure, Completion) with optional SSIS Expressions. |
+| **Control Flow: Parallelism** | `<parallel max_threads="N">` concurrency control with thread-pool workers. | Engine-level parallel execution of disconnected tasks or `EngineThreads` settings in Data Flow. |
+| **Custom Code Execution** | Pure Go embedded scripting via **Yaegi** interpreter with full host variable/DB connection exposure. | *Script Task* and *Script Component* using C# or VB.NET. |
+| **In-Memory Streaming ETL** | Direct stream ETL (`target_db` / `target_table`) with automatic driver-aware batch parameterization (`@p1`, `$1`, `?`, `:1`). | Pipeline buffer transformation engine (*Data Flow Tasks*) using memory buffers. |
+| **Configuration & Overrides** | Standard XML file overrides (`-config`) allowing easy separation of dev/prod settings without env variables. | Project Parameters, Package Parameters, Configuration Files (dtsConfig), and Environment Overrides in SSIS Catalog. |
+| **Validation / Quality Gates** | Two-pass gate: Automated **XSD schema validation** (`xmllint`) + **Semantic AST validation** (broken refs, missing DBs) prior to run. | Visual Studio design-time validation and package-level validation phases. |
+| **Output & Reporting** | Structured machine-readable **JSON array** outputting return codes, script output strings, and logs to `stdout`. | Logging to SSISDB Catalog tables, Event Viewer, text logs, or SQL Server tables. |
+| **CI/CD & Version Control** | Git-friendly text/XML files; runs seamlessly in lightweight Docker containers, GitHub Actions, or Kubernetes jobs. | XML-backed `.dtsx` files (often difficult to diff/merge in Git); requires Visual Studio or ISDeploymentWizard to deploy. |
 
 ## Architecture Overview
 

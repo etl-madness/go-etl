@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pipeline>
+    <variables>
+        <variable name="JobStatus" type="string" value="RUNNING" />
+        <variable name="TargetJobId" type="string" value="JOB_98765" />
+        <variable name="PrimaryDBConnStr" type="string" value="sqlserver://myserver.example.com:1433?database=master&amp;integrated+security=true&amp;trustServerCertificate=true" />
+
+    </variables>
+
+    <databases>
+        <!-- 
+            MSSQL Connection String Format: sqlserver://username:password@hostname:port?database=dbname&encrypt=disable
+            (Note: Use &amp; in XML for query parameters)
+        -->
+        <database name="primary_db" connection_string="{{PrimaryDBConnStr}}" />
+    </databases>
+
+    <scripts>
+        <!-- Loop continues while JobStatus == "RUNNING" up to 20 times -->
+        <while id="poll_mssql_job" var="JobStatus" equals="RUNNING" max_iterations="20">
+
+            <!-- Step 1: Wait 2 seconds between polls -->
+            <script id="sleep_step" language="go">
+                package main
+                import "time"
+                func main() {
+                    time.Sleep(2 * time.Second)
+                }
+            </script>
+
+            <!-- Step 2: Query MSSQL using T-SQL syntax and capture single value into JobStatus -->
+            <script id="check_job_status" language="sql" db="primary_db" output_var="JobStatus">
+                SELECT TOP 1 [status]
+                FROM dbo.async_tasks WITH (NOLOCK)
+                WHERE task_id = '{{TargetJobId}}';
+            </script>
+
+            <!-- Step 3: Print poll count & current status -->
+            <script id="log_poll_attempt" language="go">
+                package main
+                import (
+                    "fmt"
+                    "host/vars"
+                )
+                func main() {
+                    idx := vars.GetInt("WHILE_INDEX")
+                    status := vars.GetString("JobStatus")
+                    fmt.Printf("[MSSQL Poll #%d] Current Job Status: %s\n", idx+1, status)
+                }
+            </script>
+
+        </while>
+
+        <!-- Step 4: Handle completion or failure -->
+        <if var="JobStatus" equals="COMPLETED">
+            <then>
+                <script id="on_success" language="go">
+                    package main
+                    import "fmt"
+                    func main() { fmt.Println("MSSQL task completed successfully.") }
+                </script>
+            </then>
+            <else>
+                <script id="on_failure" language="go">
+                    package main
+                    import "fmt"
+                    func main() { fmt.Println("MSSQL task failed or timed out.") }
+                </script>
+            </else>
+        </if>
+    </scripts>
+</pipeline>

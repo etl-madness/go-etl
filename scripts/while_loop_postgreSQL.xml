@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pipeline>
+    <variables>
+        <variable name="JobStatus" type="string" value="RUNNING" />
+        <variable name="TargetJobId" type="string" value="JOB_98765" />
+    </variables>
+
+    <databases>
+        <database name="postgres_db" driver="postgres" connection_string="host=localhost user=postgres password=secret dbname=jobs sslmode=disable" />
+    </databases>
+
+    <scripts>
+        <!-- 
+            Loop continues while JobStatus == "RUNNING".
+            Limits execution to a maximum of 20 passes to prevent infinite deadlocks.
+        -->
+        <while id="poll_async_job" var="JobStatus" equals="RUNNING" max_iterations="20">
+            
+            <!-- Step 1: Pause execution via embedded Go script -->
+            <script id="sleep_step" language="go">
+                package main
+                import "time"
+                func main() {
+                    time.Sleep(2 * time.Second)
+                }
+            </script>
+
+            <!-- Step 2: Query DB and update output_var (JobStatus) -->
+            <script id="check_job_status" language="sql" db="postgres_db" output_var="JobStatus">
+                SELECT status 
+                FROM async_tasks 
+                WHERE task_id = '{{TargetJobId}}';
+            </script>
+
+            <!-- Step 3: Optional logging using built-in WHILE_INDEX variable -->
+            <script id="log_poll_attempt" language="go">
+                package main
+                import (
+                    "fmt"
+                    "host/vars"
+                )
+                func main() {
+                    idx := vars.GetInt("WHILE_INDEX")
+                    status := vars.GetString("JobStatus")
+                    fmt.Printf("Poll attempt #%d: Status is %s\n", idx+1, status)
+                }
+            </script>
+
+        </while>
+
+        <!-- Post-loop evaluation using <if> block -->
+        <if var="JobStatus" equals="COMPLETED">
+            <then>
+                <script id="on_success" language="go">
+                    package main
+                    import "fmt"
+                    func main() { fmt.Println("Pipeline execution finished successfully.") }
+                </script>
+            </then>
+            <else>
+                <script id="on_failure" language="go">
+                    package main
+                    import "fmt"
+                    func main() { fmt.Println("Job failed or exceeded maximum loop iterations.") }
+                </script>
+            </else>
+        </if>
+    </scripts>
+</pipeline>

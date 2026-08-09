@@ -2,76 +2,66 @@
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
 
     <!-- ROOT ELEMENT -->
-    <xs:element name="config">
+    <xs:element name="pipeline">
         <xs:complexType>
             <xs:sequence>
-                <xs:element name="variables" type="VariablesType" minOccurs="0" />
-                <xs:element name="databases" type="DatabasesType" minOccurs="0" />
-                <xs:element name="scripts" type="PipelineNodesType" minOccurs="0" />
+                <xs:element name="variables" type="VariablesType" minOccurs="0" maxOccurs="1" />
+                <xs:element name="databases" type="DatabasesType" minOccurs="0" maxOccurs="1" />
+                <xs:element name="scripts" type="PipelineNodesType" minOccurs="0" maxOccurs="1" />
             </xs:sequence>
         </xs:complexType>
     </xs:element>
 
-    <!-- VARIABLES SECTION -->
+    <!-- VARIABLE DEFINITIONS -->
     <xs:complexType name="VariablesType">
         <xs:sequence>
-            <xs:element name="variable" maxOccurs="unbounded">
-                <xs:complexType>
-                    <xs:attribute name="name" type="xs:string" use="required" />
-                    <xs:attribute name="type" default="string">
-                        <xs:simpleType>
-                            <xs:restriction base="xs:string">
-                                <xs:enumeration value="string" />
-                                <xs:enumeration value="int" />
-                                <xs:enumeration value="integer" />
-                                <xs:enumeration value="bool" />
-                                <xs:enumeration value="boolean" />
-                                <xs:enumeration value="float" />
-                                <xs:enumeration value="double" />
-                            </xs:restriction>
-                        </xs:simpleType>
-                    </xs:attribute>
-                    <xs:attribute name="value" type="xs:string" use="required" />
-                </xs:complexType>
-            </xs:element>
+            <xs:element name="variable" type="VariableType" minOccurs="0" maxOccurs="unbounded" />
         </xs:sequence>
     </xs:complexType>
 
-    <!-- DATABASES SECTION -->
+    <xs:complexType name="VariableType">
+        <xs:attribute name="name" type="xs:string" use="required" />
+        <xs:attribute name="type" use="optional" default="string">
+            <xs:simpleType>
+                <xs:restriction base="xs:string">
+                    <xs:enumeration value="string" />
+                    <xs:enumeration value="int" />
+                    <xs:enumeration value="integer" />
+                    <xs:enumeration value="bool" />
+                    <xs:enumeration value="boolean" />
+                    <xs:enumeration value="float" />
+                    <xs:enumeration value="double" />
+                    <xs:enumeration value="float64" />
+                </xs:restriction>
+            </xs:simpleType>
+        </xs:attribute>
+        <xs:attribute name="value" type="xs:string" use="required" />
+    </xs:complexType>
+
+    <!-- DATABASE DEFINITIONS -->
     <xs:complexType name="DatabasesType">
         <xs:sequence>
-            <xs:element name="database" maxOccurs="unbounded">
-                <xs:complexType>
-                    <xs:attribute name="name" type="xs:string" use="required" />
-                    <xs:attribute name="driver" default="sqlserver">
-                        <xs:simpleType>
-                            <xs:restriction base="xs:string">
-                                <xs:enumeration value="sqlserver" />
-                                <xs:enumeration value="mssql" />
-                                <xs:enumeration value="mysql" />
-                                <xs:enumeration value="postgres" />
-                                <xs:enumeration value="postgresql" />
-                                <xs:enumeration value="sqlite" />
-                                <xs:enumeration value="sqlite3" />
-                                <xs:enumeration value="oracle" />
-                            </xs:restriction>
-                        </xs:simpleType>
-                    </xs:attribute>
-                    <xs:attribute name="connection_string" type="xs:string" use="required" />
-                </xs:complexType>
-            </xs:element>
+            <xs:element name="database" type="DatabaseType" minOccurs="0" maxOccurs="unbounded" />
         </xs:sequence>
     </xs:complexType>
 
-    <!-- REUSABLE PIPELINE NODE GROUP -->
+    <xs:complexType name="DatabaseType">
+        <xs:attribute name="name" type="xs:string" use="required" />
+        <xs:attribute name="driver" type="xs:string" use="optional" />
+        <xs:attribute name="type" type="xs:string" use="optional" />
+        <xs:attribute name="connection_string" type="xs:string" use="required" />
+    </xs:complexType>
+
+    <!-- RECURSIVE NODE CONTAINER -->
     <xs:complexType name="PipelineNodesType">
-        <xs:choice maxOccurs="unbounded" minOccurs="0">
+        <xs:choice minOccurs="0" maxOccurs="unbounded">
             <xs:element name="script" type="ScriptType" />
             <xs:element name="group" type="GroupType" />
             <xs:element name="parallel" type="ParallelType" />
             <xs:element name="if" type="IfType" />
             <xs:element name="foreach" type="ForEachType" />
             <xs:element name="loop" type="ForEachType" />
+            <xs:element name="while" type="WhileType" />
         </xs:choice>
     </xs:complexType>
 
@@ -79,26 +69,27 @@
     <xs:complexType name="ScriptType">
         <xs:simpleContent>
             <xs:extension base="xs:string">
-                <xs:attribute name="id" type="xs:string" />
-                <xs:attribute name="language" use="required">
+                <xs:attribute name="id" type="xs:string" use="optional" />
+                <xs:attribute name="language" use="optional">
                     <xs:simpleType>
                         <xs:restriction base="xs:string">
                             <xs:enumeration value="sql" />
                             <xs:enumeration value="go" />
-                            <xs:enumeration value="SQL" />
-                            <xs:enumeration value="GO" />
                         </xs:restriction>
                     </xs:simpleType>
                 </xs:attribute>
-                <xs:attribute name="db" type="xs:string" />
-                <xs:attribute name="database" type="xs:string" />
-                <xs:attribute name="target_db" type="xs:string" />
-                <xs:attribute name="target_table" type="xs:string" />
-                <xs:attribute name="batch_size" type="xs:positiveInteger" />
-                <xs:attribute name="var" type="xs:string" />
-                <xs:attribute name="variable" type="xs:string" />
-                <xs:attribute name="output_var" type="xs:string" />
-                <xs:attribute name="out_var" type="xs:string" />
+                <xs:attribute name="lang" type="xs:string" use="optional" />
+                <xs:attribute name="db" type="xs:string" use="optional" />
+                <xs:attribute name="database" type="xs:string" use="optional" />
+                <xs:attribute name="target_db" type="xs:string" use="optional" />
+                <xs:attribute name="target_database" type="xs:string" use="optional" />
+                <xs:attribute name="target_table" type="xs:string" use="optional" />
+                <xs:attribute name="batch_size" type="xs:positiveInteger" use="optional" />
+                <xs:attribute name="variable" type="xs:string" use="optional" />
+                <xs:attribute name="var" type="xs:string" use="optional" />
+                <xs:attribute name="output_var" type="xs:string" use="optional" />
+                <xs:attribute name="output_variable" type="xs:string" use="optional" />
+                <xs:attribute name="out_var" type="xs:string" use="optional" />
             </xs:extension>
         </xs:simpleContent>
     </xs:complexType>
@@ -107,11 +98,16 @@
     <xs:complexType name="GroupType">
         <xs:complexContent>
             <xs:extension base="PipelineNodesType">
-                <xs:attribute name="id" type="xs:string" />
-                <xs:attribute name="var" type="xs:string" />
-                <xs:attribute name="if_var" type="xs:string" />
-                <xs:attribute name="equals" type="xs:string" />
-                <xs:attribute name="if_equals" type="xs:string" />
+                <xs:attribute name="id" type="xs:string" use="optional" />
+                <xs:attribute name="var" type="xs:string" use="optional" />
+                <xs:attribute name="if_var" type="xs:string" use="optional" />
+                <xs:attribute name="equals" type="xs:string" use="optional" />
+                <xs:attribute name="val" type="xs:string" use="optional" />
+                <xs:attribute name="value" type="xs:string" use="optional" />
+                <xs:attribute name="if_val" type="xs:string" use="optional" />
+                <xs:attribute name="if_equals" type="xs:string" use="optional" />
+                <xs:attribute name="condition" type="xs:string" use="optional" />
+                <xs:attribute name="cond" type="xs:string" use="optional" />
             </xs:extension>
         </xs:complexContent>
     </xs:complexType>
@@ -120,41 +116,71 @@
     <xs:complexType name="ParallelType">
         <xs:complexContent>
             <xs:extension base="PipelineNodesType">
-                <xs:attribute name="max_threads" type="xs:positiveInteger" default="4" />
-                <xs:attribute name="threads" type="xs:positiveInteger" />
-                <xs:attribute name="concurrency" type="xs:positiveInteger" />
+                <xs:attribute name="max_threads" type="xs:positiveInteger" use="optional" />
+                <xs:attribute name="threads" type="xs:positiveInteger" use="optional" />
+                <xs:attribute name="concurrency" type="xs:positiveInteger" use="optional" />
             </xs:extension>
         </xs:complexContent>
     </xs:complexType>
 
-    <!-- IF / THEN / ELSE NODE -->
+    <!-- IF / CONDITIONAL NODE -->
     <xs:complexType name="IfType">
         <xs:sequence>
-            <xs:element name="then" type="PipelineNodesType" minOccurs="0" />
-            <xs:element name="else" type="PipelineNodesType" minOccurs="0" />
-            <xs:choice maxOccurs="unbounded" minOccurs="0">
+            <xs:element name="then" type="PipelineNodesType" minOccurs="0" maxOccurs="1" />
+            <xs:element name="else" type="PipelineNodesType" minOccurs="0" maxOccurs="1" />
+            <!-- Allows inline children without explicit <then> tags -->
+            <xs:choice minOccurs="0" maxOccurs="unbounded">
                 <xs:element name="script" type="ScriptType" />
                 <xs:element name="group" type="GroupType" />
                 <xs:element name="parallel" type="ParallelType" />
+                <xs:element name="if" type="IfType" />
                 <xs:element name="foreach" type="ForEachType" />
+                <xs:element name="loop" type="ForEachType" />
+                <xs:element name="while" type="WhileType" />
             </xs:choice>
         </xs:sequence>
-        <xs:attribute name="var" type="xs:string" />
-        <xs:attribute name="if_var" type="xs:string" />
-        <xs:attribute name="equals" type="xs:string" />
-        <xs:attribute name="if_equals" type="xs:string" />
-        <xs:attribute name="condition" type="xs:string" />
+        <xs:attribute name="var" type="xs:string" use="optional" />
+        <xs:attribute name="if_var" type="xs:string" use="optional" />
+        <xs:attribute name="equals" type="xs:string" use="optional" />
+        <xs:attribute name="val" type="xs:string" use="optional" />
+        <xs:attribute name="value" type="xs:string" use="optional" />
+        <xs:attribute name="if_val" type="xs:string" use="optional" />
+        <xs:attribute name="if_equals" type="xs:string" use="optional" />
+        <xs:attribute name="condition" type="xs:string" use="optional" />
+        <xs:attribute name="cond" type="xs:string" use="optional" />
     </xs:complexType>
 
     <!-- FOREACH / LOOP NODE -->
     <xs:complexType name="ForEachType">
         <xs:complexContent>
             <xs:extension base="PipelineNodesType">
-                <xs:attribute name="id" type="xs:string" />
-                <xs:attribute name="language" type="xs:string" default="sql" />
-                <xs:attribute name="db" type="xs:string" />
-                <xs:attribute name="database" type="xs:string" />
-                <xs:attribute name="var" type="xs:string" />
+                <xs:attribute name="id" type="xs:string" use="optional" />
+                <xs:attribute name="language" type="xs:string" use="optional" />
+                <xs:attribute name="lang" type="xs:string" use="optional" />
+                <xs:attribute name="db" type="xs:string" use="optional" />
+                <xs:attribute name="database" type="xs:string" use="optional" />
+                <xs:attribute name="variable" type="xs:string" use="optional" />
+                <xs:attribute name="var" type="xs:string" use="optional" />
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+
+    <!-- WHILE LOOP NODE -->
+    <xs:complexType name="WhileType">
+        <xs:complexContent>
+            <xs:extension base="PipelineNodesType">
+                <xs:attribute name="id" type="xs:string" use="optional" />
+                <xs:attribute name="var" type="xs:string" use="optional" />
+                <xs:attribute name="if_var" type="xs:string" use="optional" />
+                <xs:attribute name="equals" type="xs:string" use="optional" />
+                <xs:attribute name="val" type="xs:string" use="optional" />
+                <xs:attribute name="value" type="xs:string" use="optional" />
+                <xs:attribute name="if_val" type="xs:string" use="optional" />
+                <xs:attribute name="if_equals" type="xs:string" use="optional" />
+                <xs:attribute name="condition" type="xs:string" use="optional" />
+                <xs:attribute name="cond" type="xs:string" use="optional" />
+                <xs:attribute name="max_iterations" type="xs:positiveInteger" use="optional" default="1000" />
+                <xs:attribute name="max_loops" type="xs:positiveInteger" use="optional" />
             </xs:extension>
         </xs:complexContent>
     </xs:complexType>
