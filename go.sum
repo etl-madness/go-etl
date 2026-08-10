@@ -16,8 +16,8 @@ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=
 github.com/dustin/go-humanize v1.0.1/go.mod h1:Mu1zIs6XwVuF/gI1OepvI0qD18qycQx+mFykh5fBlto=
-github.com/etl-madness/flow v1.0.0 h1:IygUyZfBOcn7ZmiIe+xoaoei+/beBcRBLyxNLMOTqsI=
-github.com/etl-madness/flow v1.0.0/go.mod h1:wf01A2gdVWDP0IAni41WFmYkitvB/s2sl5EGGL2aCNw=
+github.com/etl-madness/flow v1.0.1 h1:nOwr0T+YT5diMlBUycnZpi73QNWzxnRRudBSGYl42Eg=
+github.com/etl-madness/flow v1.0.1/go.mod h1:wf01A2gdVWDP0IAni41WFmYkitvB/s2sl5EGGL2aCNw=
 github.com/go-sql-driver/mysql v1.10.0 h1:Q+1LV8DkHJvSYAdR83XzuhDaTykuDx0l6fkXxoWCWfw=
 github.com/go-sql-driver/mysql v1.10.0/go.mod h1:M+cqaI7+xxXGG9swrdeUIoPG3Y3KCkF0pZej+SK+nWk=
 github.com/golang-jwt/jwt/v5 v5.3.1 h1:kYf81DTWFe7t+1VvL7eS+jKFVWaUnK9cB1qbwn63YCY=
