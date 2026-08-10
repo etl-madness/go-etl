@@ -53,6 +53,14 @@ type Executor struct { ... }
 
 func NewExecutor(r *Registry) *Executor
 func (e *Executor) Execute(nodes []PipelineNode) ([]ScriptResult, error)
+
+// ScriptResult represents the outcome of an executed script or loop step.
+type ScriptResult struct {
+	ScriptID      string `json:"script_id"`
+	ReturnCode    any    `json:"return_code"`      // 0 on success, or an error string/code on failure
+	ResultsString string `json:"results_string"`    // Output logs/data from query or script
+	Duration      string `json:"duration,omitempty"` // Execution duration (e.g. "14.285ms")
+}
 ```
 
 ---

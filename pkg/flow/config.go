@@ -316,16 +316,16 @@ func parseNodeElement(decoder *xml.Decoder, se xml.StartElement, scriptIndex *in
 			(*scriptIndex)++
 		}
 
-		children, err := parseChildrenUntil(decoder, elemName, scriptIndex)
+		driverCode, children, err := parseForEachBody(decoder, elemName, scriptIndex)
 		if err != nil {
 			return nil, err
 		}
-
 		driverScript := &ScriptItem{
 			ID:       fmt.Sprintf("%s_driver", foreachID),
 			Language: lang,
 			DBName:   dbName,
 			VarName:  varName,
+			Code:     driverCode, // The actual code will be in the child nodes
 		}
 
 		return &PipelineNode{
@@ -382,6 +382,38 @@ func parseNodeElement(decoder *xml.Decoder, se xml.StartElement, scriptIndex *in
 	}
 
 	return nil, nil
+}
+
+func parseForEachBody(decoder *xml.Decoder, closingTag string, scriptIndex *int) (string, []PipelineNode, error) {
+	var nodes []PipelineNode
+	var codeBuilder strings.Builder
+
+	for {
+		tok, err := decoder.Token()
+		if err == io.EOF {
+			return "", nil, fmt.Errorf("unexpected EOF waiting for </%s>", closingTag)
+		}
+		if err != nil {
+			return "", nil, err
+		}
+
+		switch t := tok.(type) {
+		case xml.EndElement:
+			if strings.EqualFold(t.Name.Local, closingTag) {
+				return strings.TrimSpace(codeBuilder.String()), nodes, nil
+			}
+		case xml.CharData:
+			codeBuilder.Write([]byte(t))
+		case xml.StartElement:
+			node, err := parseNodeElement(decoder, t, scriptIndex)
+			if err != nil {
+				return "", nil, err
+			}
+			if node != nil {
+				nodes = append(nodes, *node)
+			}
+		}
+	}
 }
 
 func parseChildrenUntil(decoder *xml.Decoder, closingTag string, scriptIndex *int) ([]PipelineNode, error) {
