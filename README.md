@@ -84,7 +84,10 @@ The engine natively registers and supports multiple database drivers. You can co
   * Comprehensive semantic checks (duplicate script IDs, connection validity, empty code bodies) executed prior to launching any scripts.
 * 🌊 **Memory-Safe Streaming ETL**:
   * **Cross-DB Declarative SQL Streaming**: Instantly copy query results between heterogeneous databases (e.g., PostgreSQL query streamed directly to SQLite) without writing Go code by specifying `target_db` and `target_table` on a SQL script block. The engine automatically maps parameters and placeholders based on the destination's driver syntax.
+  * **Dynamic Batch Clamping**: Automatically detects destination connection driver types; for SQL Server (`mssql`/`sqlserver`), it automatically clamps the `batch_size` based on column count to strictly respect the 2100 SQL Server parameter limits.
+  * **Decoupled Concurrent Stream Buffering**: Built-in concurrent producer-consumer buffering decoupling database read streams from bulk write flushes, resolving stream type corruption and idle connection timeouts.
   * **Programmatic Go Streaming**: Stream millions of records line-by-line using the `db.StreamETL` host API, utilizing parameterized batch inserts to avoid memory bloat and string limits.
+* ⏱️ **Execution Time Tracking**: All step results dynamically compute their actual execution durations (returned as a precise formatted `duration` field, e.g. `"245.85ms"`, in the final structured JSON results).
 * 🔗 **Dynamic Connection String Templating**: Define variables and automatically inject them into database connection strings using `{{VarName}}` placeholders.
 * 🔄 **Cross-Script Data Passing**: Dynamically pass outputs between blocks using `output_var` attributes or the implicit `LAST_OUTPUT` context variable.
 * 🛡️ **Fail-Fast sequential execution**: Halts execution immediately if any step encounters a panic, query syntax error, or unhandled Go error, outputting a complete JSON report up to the failure point.
