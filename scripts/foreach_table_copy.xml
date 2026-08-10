@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pipeline>
+    <variables>
+        <!-- Connection strings (Replace with actual SQL Server connection details if needed) -->
+        <variable name="ProdDBConnStr" type="string" value="sqlserver://sa:Password123!@localhost:1433?database=PROD&amp;trustServerCertificate=true" />
+        <variable name="Database1ConnStr" type="string" value="sqlserver://sa:Password123!@localhost:1433?database=database1&amp;trustServerCertificate=true" />
+        <variable name="Database2ConnStr" type="string" value="sqlserver://sa:Password123!@localhost:1433?database=database2&amp;trustServerCertificate=true" />
+
+        <!-- Initial value for ProcessDate -->
+        <variable name="ProcessDate" type="string" value="" />
+
+        <!-- Query to drive the foreach loop -->
+        <variable name="GetTablesQuery" value="SELECT source_table, destination_table, column_list, application, processing_date FROM [dbo].[table_xfr_map] WHERE CAST(processing_date AS DATE) = CAST('{{ProcessDate}}' AS DATE)" />
+    </variables>
+
+    <databases>
+        <database name="PROD" connection_string="{{ProdDBConnStr}}" />
+        <database name="database1" connection_string="{{Database1ConnStr}}" />
+        <database name="database2" connection_string="{{Database2ConnStr}}" />
+    </databases>
+
+    <scripts>
+        <!-- 1. Fetch ProcessDate (today's date in format YYYY-MM-DD) from PROD DB -->
+        <script id="GetProcessDate" language="sql" db="PROD" output_var="ProcessDate">
+            <![CDATA[
+            SELECT CONVERT(varchar, GETDATE(), 23) AS ProcessDate;
+            ]]>
+        </script>
+
+        <!-- Diagnostic Script: Show rows in mapping table to help debug dates and values -->
+        <script id="DiagnoseMappingTable" language="sql" db="PROD">
+            <![CDATA[
+            SELECT   source_table, destination_table, column_list, application, processing_date, CAST(processing_date AS DATE) AS casted_date FROM [dbo].[table_xfr_map];
+            ]]>
+        </script>
+
+        <!-- 2. Iterate through each source/destination mapping from [table_xfr_map] -->
+        <foreach id="TableLoop" language="sql" db="PROD" var="GetTablesQuery">
+            <group id="TransferTableGroup">
+                <!-- Log the transfer details -->
+                <script id="LogTransfer" language="sql" db="PROD">
+                    <![CDATA[
+                    SELECT 'Streaming table from database1.{{source_table}} to database2.{{destination_table}} (App: {{application}}, Date: {{processing_date}}, Columns: {{column_list}})' AS status_log;
+                    ]]>
+                </script>
+                <!-- 3. Truncate the target table -->
+                <script id="TruncateTable" language="sql" db="database2">
+                    <![CDATA[
+                    TRUNCATE TABLE {{destination_table}};
+                    ]]>
+                </script>
+                <!-- 4. Stream data from database1 to database2 directly using sqlStream -->
+
+                <script id="StreamData" language="sql" db="database1" target_db="database2" target_table="{{destination_table}}" batch_size="2100">
+                    <![CDATA[
+                    SELECT {{column_list}} FROM {{source_table}};
+                    ]]>
+                </script>
+
+
+            </group>
+        </foreach>
+    </scripts>
+</pipeline>

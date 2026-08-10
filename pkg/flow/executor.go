@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/traefik/yaegi/interp"
 	"github.com/traefik/yaegi/stdlib"
@@ -16,6 +17,7 @@ type ScriptResult struct {
 	ScriptID      string `json:"script_id"`
 	ReturnCode    any    `json:"return_code"`
 	ResultsString string `json:"results_string"`
+	Duration      string `json:"duration,omitempty"`
 }
 
 type Executor struct {
@@ -171,6 +173,7 @@ func (e *Executor) storeScriptOutput(outputVar string, output string) {
 }
 
 func (e *Executor) executeScriptNode(script ScriptItem, results *[]ScriptResult) bool {
+	startTime := time.Now()
 	codeToEval := script.Code
 
 	if script.VarName != "" {
@@ -185,6 +188,11 @@ func (e *Executor) executeScriptNode(script ScriptItem, results *[]ScriptResult)
 
 	res := ScriptResult{ScriptID: script.ID}
 
+	appendWithDuration := func(r ScriptResult) {
+		r.Duration = time.Since(startTime).String()
+		e.appendResult(results, r)
+	}
+
 	if script.Language == "sql" {
 		if script.TargetTable != "" {
 			targetDB := script.TargetDB
@@ -192,27 +200,35 @@ func (e *Executor) executeScriptNode(script ScriptItem, results *[]ScriptResult)
 				targetDB = script.DBName
 			}
 
-			copied, err := StreamETL(e.registry, script.DBName, codeToEval, targetDB, script.TargetTable, script.BatchSize)
+			targetTable := script.TargetTable
+			variables := e.registry.CopyVariables()
+			for name, val := range variables {
+				placeholder := fmt.Sprintf("{{%s}}", name)
+				targetTable = strings.ReplaceAll(targetTable, placeholder, fmt.Sprintf("%v", val))
+				targetDB = strings.ReplaceAll(targetDB, placeholder, fmt.Sprintf("%v", val))
+			}
+
+			copied, err := StreamETL(e.registry, script.DBName, codeToEval, targetDB, targetTable, script.BatchSize)
 			if err != nil {
 				res.ReturnCode = err.Error()
-				e.appendResult(results, res)
+				appendWithDuration(res)
 				return true
 			}
 			res.ReturnCode = 0
-			res.ResultsString = fmt.Sprintf("Streamed %d row(s) directly to %s.%s\n", copied, targetDB, script.TargetTable)
+			res.ResultsString = fmt.Sprintf("Streamed %d row(s) directly to %s.%s\n", copied, targetDB, targetTable)
 			e.storeScriptOutput(script.OutputVar, fmt.Sprintf("%d", copied))
-			e.appendResult(results, res)
+			appendWithDuration(res)
 		} else {
 			logOutput, rawOutput, err := e.executeSQLScript(script.DBName, codeToEval)
 			res.ResultsString = logOutput
 			if err != nil {
 				res.ReturnCode = err.Error()
-				e.appendResult(results, res)
+				appendWithDuration(res)
 				return true
 			}
 			res.ReturnCode = 0
 			e.storeScriptOutput(script.OutputVar, rawOutput)
-			e.appendResult(results, res)
+			appendWithDuration(res)
 		}
 
 	} else if script.Language == "go" {
@@ -225,7 +241,7 @@ func (e *Executor) executeScriptNode(script ScriptItem, results *[]ScriptResult)
 		if err := i.Use(stdlib.Symbols); err != nil {
 			res.ReturnCode = 1
 			res.ResultsString = fmt.Sprintf("Failed to load stdlib symbols: %v", err)
-			e.appendResult(results, res)
+			appendWithDuration(res)
 			return true
 		}
 
@@ -252,7 +268,7 @@ func (e *Executor) executeScriptNode(script ScriptItem, results *[]ScriptResult)
 		}); err != nil {
 			res.ReturnCode = 1
 			res.ResultsString = fmt.Sprintf("Failed to export packages: %v", err)
-			e.appendResult(results, res)
+			appendWithDuration(res)
 			return true
 		}
 
@@ -260,19 +276,20 @@ func (e *Executor) executeScriptNode(script ScriptItem, results *[]ScriptResult)
 		if err != nil {
 			res.ReturnCode = err.Error()
 			res.ResultsString = outBuf.String()
-			e.appendResult(results, res)
+			appendWithDuration(res)
 			return true
 		}
 
 		res.ReturnCode = 0
 		res.ResultsString = outBuf.String()
 		e.storeScriptOutput(script.OutputVar, strings.TrimSpace(outBuf.String()))
-		e.appendResult(results, res)
+		appendWithDuration(res)
 	}
 	return false
 }
 
 func (e *Executor) executeForEachNode(node PipelineNode, results *[]ScriptResult) bool {
+	startTime := time.Now()
 	script := node.ForEachScript
 	if script == nil {
 		return false
@@ -289,6 +306,11 @@ func (e *Executor) executeForEachNode(node PipelineNode, results *[]ScriptResult
 		}
 	}
 
+	appendWithDuration := func(r ScriptResult) {
+		r.Duration = time.Since(startTime).String()
+		e.appendResult(results, r)
+	}
+
 	if script.Language == "sql" {
 		variables := e.registry.CopyVariables()
 		for name, val := range variables {
@@ -299,14 +321,14 @@ func (e *Executor) executeForEachNode(node PipelineNode, results *[]ScriptResult
 		dbConn, err := e.registry.GetDB(script.DBName)
 		if err != nil {
 			res := ScriptResult{ScriptID: script.ID, ReturnCode: err.Error()}
-			e.appendResult(results, res)
+			appendWithDuration(res)
 			return true
 		}
 
 		rows, err := dbConn.Query(codeToEval)
 		if err != nil {
 			res := ScriptResult{ScriptID: script.ID, ReturnCode: err.Error()}
-			e.appendResult(results, res)
+			appendWithDuration(res)
 			return true
 		}
 		defer rows.Close()
@@ -314,7 +336,7 @@ func (e *Executor) executeForEachNode(node PipelineNode, results *[]ScriptResult
 		cols, err := rows.Columns()
 		if err != nil {
 			res := ScriptResult{ScriptID: script.ID, ReturnCode: err.Error()}
-			e.appendResult(results, res)
+			appendWithDuration(res)
 			return true
 		}
 
@@ -328,7 +350,7 @@ func (e *Executor) executeForEachNode(node PipelineNode, results *[]ScriptResult
 
 			if err := rows.Scan(valPtrs...); err != nil {
 				res := ScriptResult{ScriptID: script.ID, ReturnCode: err.Error()}
-				e.appendResult(results, res)
+				appendWithDuration(res)
 				return true
 			}
 
@@ -356,9 +378,16 @@ func (e *Executor) executeForEachNode(node PipelineNode, results *[]ScriptResult
 
 		if err := rows.Err(); err != nil {
 			res := ScriptResult{ScriptID: script.ID, ReturnCode: err.Error()}
-			e.appendResult(results, res)
+			appendWithDuration(res)
 			return true
 		}
+		summary := ScriptResult{
+			ScriptID:   script.ID,
+			ReturnCode: 0,
+			ResultsString: fmt.Sprintf(
+				"foreach '%s' loop driver returned %d row(s) and executed %d iteration(s).", node.GroupID, loopIdx, loopIdx),
+		}
+		appendWithDuration(summary)
 	}
 	return false
 }

@@ -3,6 +3,7 @@ package flow
 import (
 	"fmt"
 	"strings"
+	"sync"
 )
 
 // formatPlaceholder formats query placeholders based on the destination database driver syntax
@@ -62,6 +63,18 @@ func StreamETL(r *Registry, srcDBName, queryStr, dstDBName, targetTable string, 
 	}
 
 	colList := strings.Join(cols, ", ")
+
+	// MSSQL limit is 2100 parameters.
+	// If dstDriver is mssql or sqlserver, we must ensure we don't exceed 2100 parameters.
+	if strings.ToLower(dstDriver) == "sqlserver" || strings.ToLower(dstDriver) == "mssql" {
+		maxBatchRows := 2100 / len(cols)
+		if maxBatchRows <= 0 {
+			maxBatchRows = 1
+		}
+		if batchSize > maxBatchRows {
+			batchSize = maxBatchRows
+		}
+	}
 	var totalInserted int64 = 0
 	var batchRows [][]interface{}
 
@@ -95,37 +108,59 @@ func StreamETL(r *Registry, srcDBName, queryStr, dstDBName, targetTable string, 
 		return nil
 	}
 
-	for rows.Next() {
-		scans := make([]interface{}, len(cols))
-		vals := make([]interface{}, len(cols))
-		for i := range scans {
-			scans[i] = &vals[i]
-		}
+	rowChan := make(chan []interface{}, 5000)
+	var readErr error
+	var wg sync.WaitGroup
 
-		if err := rows.Scan(scans...); err != nil {
-			return totalInserted, fmt.Errorf("row scan error: %w", err)
-		}
-
-		rowCopy := make([]interface{}, len(cols))
-		for i, v := range vals {
-			if b, ok := v.([]byte); ok {
-				rowCopy[i] = string(b)
-			} else {
-				rowCopy[i] = v
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer close(rowChan)
+		for rows.Next() {
+			scans := make([]interface{}, len(cols))
+			vals := make([]interface{}, len(cols))
+			for i := range scans {
+				scans[i] = &vals[i]
 			}
+
+			if err := rows.Scan(scans...); err != nil {
+				readErr = fmt.Errorf("row scan error: %w", err)
+				return
+			}
+
+			rowCopy := make([]interface{}, len(cols))
+			for i, v := range vals {
+				if b, ok := v.([]byte); ok {
+					rowCopy[i] = string(b)
+				} else {
+					rowCopy[i] = v
+				}
+			}
+			rowChan <- rowCopy
 		}
+		if err := rows.Err(); err != nil {
+			readErr = fmt.Errorf("rows iteration error: %w", err)
+		}
+	}()
 
-		batchRows = append(batchRows, rowCopy)
-
+	for row := range rowChan {
+		batchRows = append(batchRows, row)
 		if len(batchRows) >= batchSize {
 			if err := flushBatch(); err != nil {
+				// Prevent goroutine leak by draining the channel in a separate goroutine
+				go func() {
+					for range rowChan {
+					}
+				}()
+				wg.Wait()
 				return totalInserted, err
 			}
 		}
 	}
 
-	if err := rows.Err(); err != nil {
-		return totalInserted, fmt.Errorf("rows iteration error: %w", err)
+	wg.Wait()
+	if readErr != nil {
+		return totalInserted, readErr
 	}
 
 	if err := flushBatch(); err != nil {
