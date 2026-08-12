@@ -2,7 +2,7 @@ module github.com/etl-madness/go-etl
 
 go 1.26.5
 
-require github.com/etl-madness/flow v1.0.1
+require github.com/etl-madness/flow v1.2.0
 
 require (
 	filippo.io/edwards25519 v1.2.0 // indirect
@@ -19,11 +19,11 @@ require (
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/sijms/go-ora/v2 v2.9.0 // indirect
 	github.com/traefik/yaegi v0.16.1 // indirect
-	golang.org/x/crypto v0.50.0 // indirect
+	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.36.0 // indirect
-	modernc.org/libc v1.74.4 // indirect
+	golang.org/x/text v0.41.0 // indirect
+	modernc.org/libc v1.75.3 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
-	modernc.org/memory v1.11.0 // indirect
+	modernc.org/memory v1.12.0 // indirect
 	modernc.org/sqlite v1.56.0 // indirect
 )

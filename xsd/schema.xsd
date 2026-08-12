@@ -90,6 +90,10 @@
                 <xs:attribute name="output_var" type="xs:string" use="optional" />
                 <xs:attribute name="output_variable" type="xs:string" use="optional" />
                 <xs:attribute name="out_var" type="xs:string" use="optional" />
+                <xs:attribute name="tablock" type="xs:boolean" use="optional" />
+                <xs:attribute name="check_constraints" type="xs:boolean" use="optional" />
+                <xs:attribute name="fire_triggers" type="xs:boolean" use="optional" />
+                <xs:attribute name="keep_nulls" type="xs:boolean" use="optional" />
             </xs:extension>
         </xs:simpleContent>
     </xs:complexType>

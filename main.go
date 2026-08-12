@@ -14,8 +14,10 @@ func main() {
 	xsdPath := flag.String("xsd", "", "Path to XSD file for schema validation (optional)")
 	configPath := flag.String("config", "", "Optional path to CONFIG.xml file containing variable overrides")
 	validateOnly := flag.Bool("validate", false, "Validate XML schema and structure without executing pipeline")
-	flag.Parse()
 
+	consoleLogging := flag.Bool("console-log", false, "Enable console logging")
+	flag.Parse()
+	
 	// 1. Optional XSD Validation Pass (runs xmllint if -xsd flag is provided)
 	if *xsdPath != "" {
 		if err := flow.ValidateXSD(*filePath, *xsdPath); err != nil {
@@ -116,6 +118,7 @@ func main() {
 	defer registry.CloseDatabases()
 
 	executor := flow.NewExecutor(registry)
+	executor.SetVerbose(*consoleLogging)
 	results, execErr := executor.Execute(nodes)
 
 	outputJSON(results)

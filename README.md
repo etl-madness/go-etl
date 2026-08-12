@@ -1,9 +1,4 @@
-# XML Script Execution Engine (go-etl)
-
-[![Go Version](https://img.shields.io/badge/Go-1.20%2B-blue.svg)](https://golang.org)
-[![Databases](https://img.shields.io/badge/Databases-SQLServer%20|%20Postgres%20|%20MySQL%20|%20SQLite%20|%20Oracle-blue.svg)](#supported-database-engines)
-[![XML Schema](https://img.shields.io/badge/XML%20Schema-XSD%20Valid-green.svg)](schema.xsd)
-[![Interpreter](https://img.shields.io/badge/Go%20Interpreter-Yaegi-orange.svg)](https://github.com/traefik/yaegi)
+# SSIS-like XML Script Execution Engine (go-etl)
 
 An enterprise-grade, XML-driven multi-database pipeline executor and ETL engine written in Go. This tool enables developers to define complex, high-performance data processing pipelines that seamlessly combine interpreted Go scripts (executed in-memory via Yaegi) and SQL queries across multiple heterogeneous database engines.
 
@@ -23,6 +18,8 @@ With built-in support for environment-specific configuration overrides, strongly
 | **Control Flow: Parallelism** | `<parallel max_threads="N">` concurrency control with thread-pool workers. | Engine-level parallel execution of disconnected tasks or `EngineThreads` settings in Data Flow. |
 | **Custom Code Execution** | Pure Go embedded scripting via **Yaegi** interpreter with full host variable/DB connection exposure. | *Script Task* and *Script Component* using C# or VB.NET. |
 | **In-Memory Streaming ETL** | Direct stream ETL (`target_db` / `target_table`) with automatic driver-aware batch parameterization (`@p1`, `$1`, `?`, `:1`). | Pipeline buffer transformation engine (*Data Flow Tasks*) using memory buffers. |
+| **In-Memory MSSQL Bulk Copy** |  Direct stream ETL (`target_db` / `target_table`) with customizable options such as batch_size="25000" tablock="true" check_constraints="true" fire_triggers="false" keep_nulls="true". | *Bulk Insert Task* or *Data Flow Task* with `OLE DB Destination` using `Table or View - Fast Load`. |
+| **In-Memory Variable Passing** | Dynamic variable passing between scripts via `output_var` or implicit `LAST_OUTPUT`. | SSIS *Variables* with scope and expression evaluation. |
 | **Configuration & Overrides** | Standard XML file overrides (`-config`) allowing easy separation of dev/prod settings without env variables. | Project Parameters, Package Parameters, Configuration Files (dtsConfig), and Environment Overrides in SSIS Catalog. |
 | **Validation / Quality Gates** | Two-pass gate: Automated **XSD schema validation** (`xmllint`) + **Semantic AST validation** (broken refs, missing DBs) prior to run. | Visual Studio design-time validation and package-level validation phases. |
 | **Output & Reporting** | Structured machine-readable **JSON array** outputting return codes, script output strings, and logs to `stdout`. | Logging to SSISDB Catalog tables, Event Viewer, text logs, or SQL Server tables. |
@@ -133,6 +130,9 @@ go run main.go --file pipeline.xml --config production_config.xml
 
 # Pipeline Validation Only (Does not execute scripts)
 go run main.go --file pipeline.xml --validate
+
+# Console Logging (Additional verbose output to stdout)
+go run main.go --file pipeline.xml --console-log
 
 # Full Schema Validation and Execution
 go run main.go --file pipeline.xml --xsd schema.xsd --config CONFIG.xml
@@ -397,6 +397,61 @@ Implements concurrent task processing with thread-pool size constraints.
 </parallel>
 ```
 
+### 5. MSSQL Bulk Copy (`mssql_trunc_copy_table.xml`)
+
+In comparison to an SSIS package executing the same truncate and dataflow, the SSIS package with equivalent functionality processed truncate and bulk copy of 12151 rows in  00:00:04.500.
+The example script below run via go-etl executed in 821.5704ms. Your mileage will vary based on network latency, database engine, and hardware.
+
+```xml
+SSIS Package with equivalent functionality processed truncate and bulk copy of 12151 rows in  00:00:04.500, go-etl of below script executed in 821.5704ms.
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<pipeline>
+    <variables>
+        <!-- Connection strings (Replace with actual SQL Server connection details if needed) -->
+        <variable name="Database1ConnStr" type="string" value="sqlserver://sa:Password123!@localhost:1433?database=database1&amp;trustServerCertificate=true" />
+        <variable name="Database2ConnStr" type="string" value="sqlserver://sa:Password123!@localhost:1433?database=database2&amp;trustServerCertificate=true" />
+
+        <!-- Initial value for ProcessDate -->
+    </variables>
+
+    <databases>
+        <database name="database1" connection_string="{{Database1ConnStr}}" />
+        <database name="database2" connection_string="{{Database2ConnStr}}" />
+    </databases>
+
+    <scripts>
+        <!-- 1. Fetch ProcessDate (today's date in format YYYY-MM-DD) and set to ProcessDate variable -->
+
+        <script id="GO_GET_ProcessDate" language="go">
+            <![CDATA[
+            package main
+                import (
+                    "fmt"
+                    "time"
+                )
+                func main() {
+                    today := time.Now().Format("2006-01-02")
+                    fmt.Println(today)
+                }   
+            ]]>
+        </script>
+
+        <script id="MSSQL_TRUNCATE_xfr_cross_db_objects" language="sql" db="database2">
+            <![CDATA[
+                    TRUNCATE TABLE [dbo].[xfr_cross_db_objects];
+                    ]]>
+        </script>
+        <script id="MSSQL_BLK_STREAM_to_xfr_cross_db_objects" language="sql" db="database1" target_db="database2" target_table="[dbo].[xfr_cross_db_objects]" batch_size="25000" tablock="true" check_constraints="true" fire_triggers="false" keep_nulls="true">
+            <![CDATA[
+                    SELECT [object_servername],[object_servicename],[object_database],[object_id],[object_schema],[object_name],[object_type],[object_desc],[LoadDate] FROM [dbo].[cross_db_objects] (NOLOCK);
+                 ]]>
+        </script>
+    </scripts>
+</pipeline>
+```
+
 ---
 
 ## Best Practices & Temporary Tables
@@ -423,12 +478,14 @@ When the engine finishes executing, it outputs a clean, machine-readable JSON ar
   {
     "script_id": "setup_target",
     "return_code": 0,
-    "results_string": "(0 row(s) returned)\n"
+    "results_string": "(0 row(s) returned)\n",
+    "duration": "12.34ms"
   },
   {
     "script_id": "stream_sql",
     "return_code": 0,
-    "results_string": "Streamed 4 row(s) directly to analytics_db.dbo.DirectStreamAudit\n"
+    "results_string": "Streamed 4 row(s) directly to analytics_db.dbo.DirectStreamAudit\n",
+    "duration": "45.67ms"
   }
 ]
 ```

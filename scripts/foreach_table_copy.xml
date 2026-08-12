@@ -20,29 +20,43 @@
     </databases>
 
     <scripts>
-        <!-- 1. Fetch ProcessDate (today's date in format YYYY-MM-DD) from PROD DB -->
-        <script id="GetProcessDate" language="sql" db="PROD" output_var="ProcessDate">
-            <![CDATA[
-            SELECT CONVERT(varchar, GETDATE(), 23) AS ProcessDate;
-            ]]>
-        </script>
+        <!-- 1. Fetch ProcessDate (today's date in format YYYY-MM-DD) and set to ProcessDate variable -->
 
-        <!-- Diagnostic Script: Show rows in mapping table to help debug dates and values -->
-        <script id="DiagnoseMappingTable" language="sql" db="PROD">
+        <script id="GetProcessDate" language="go" output_var="ProcessDate">
             <![CDATA[
-            SELECT   source_table, destination_table, column_list, application, processing_date, CAST(processing_date AS DATE) AS casted_date FROM [dbo].[table_xfr_map];
+            package main
+                import (
+                    "fmt"
+                    "time"
+                )
+                func main() {
+                    today := time.Now().Format("2006-01-02")
+                    fmt.Println(today)
+                }   
             ]]>
         </script>
+        <!-- Diagnostic Script: Show rows in mapping table to help debug dates and values -->
 
         <!-- 2. Iterate through each source/destination mapping from [table_xfr_map] -->
         <foreach id="TableLoop" language="sql" db="PROD" var="GetTablesQuery">
             <group id="TransferTableGroup">
                 <!-- Log the transfer details -->
-                <script id="LogTransfer" language="sql" db="PROD">
+                <script id="LOG_TableLoop_Each_IDX" language="go">
                     <![CDATA[
-                    SELECT 'Streaming table from database1.{{source_table}} to database2.{{destination_table}} (App: {{application}}, Date: {{processing_date}}, Columns: {{column_list}})' AS status_log;
-                    ]]>
+                            package main
+                            import (
+                                "fmt"
+                                "host/vars/vars"
+                            )
+                            func main() {
+                                sourceTable := vars.GetString("source_table")
+                                destinationTable := vars.GetString("destination_table")
+                                idx := vars.GetInt("LOOP_INDEX")
+                                fmt.Printf("[Loop #%d] Go script processing source table: %s, destination table: %s\n", idx, sourceTable, destinationTable)
+                            }
+                            ]]>
                 </script>
+
                 <!-- 3. Truncate the target table -->
                 <script id="TruncateTable" language="sql" db="database2">
                     <![CDATA[
@@ -50,10 +64,9 @@
                     ]]>
                 </script>
                 <!-- 4. Stream data from database1 to database2 directly using sqlStream -->
-
-                <script id="StreamData" language="sql" db="database1" target_db="database2" target_table="{{destination_table}}" batch_size="2100">
+                <script id="MSSQL_BLK_STREAM_to_table_list" language="sql" db="database1" target_db="database2" target_table="{{destination_table}}" batch_size="25000" tablock="true" check_constraints="true" fire_triggers="false" keep_nulls="true">
                     <![CDATA[
-                    SELECT {{column_list}} FROM {{source_table}};
+                    SELECT {{column_list}} FROM {{source_table}} (NOLOCK);
                     ]]>
                 </script>
 

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pipeline>
+    <variables>
+        <!-- Connection strings (Replace with actual SQL Server connection details if needed) -->
+        <variable name="Database1ConnStr" type="string" value="sqlserver://sa:Password123!@localhost:1433?database=database1&amp;trustServerCertificate=true" />
+        <variable name="Database2ConnStr" type="string" value="sqlserver://sa:Password123!@localhost:1433?database=database2&amp;trustServerCertificate=true" />
+
+        <!-- Initial value for ProcessDate -->
+    </variables>
+
+    <databases>
+        <database name="database1" connection_string="{{Database1ConnStr}}" />
+        <database name="database2" connection_string="{{Database2ConnStr}}" />
+    </databases>
+
+    <scripts>
+        <!-- 1. Fetch ProcessDate (today's date in format YYYY-MM-DD) and set to ProcessDate variable -->
+
+        <script id="GO_GET_ProcessDate" language="go">
+            <![CDATA[
+            package main
+                import (
+                    "fmt"
+                    "time"
+                )
+                func main() {
+                    today := time.Now().Format("2006-01-02")
+                    fmt.Println(today)
+                }   
+            ]]>
+        </script>
+
+        <script id="MSSQL_TRUNCATE_xfr_cross_db_objects" language="sql" db="database2">
+            <![CDATA[
+                    TRUNCATE TABLE [dbo].[xfr_cross_db_objects];
+                    ]]>
+        </script>
+        <script id="MSSQL_BLK_STREAM_to_xfr_cross_db_objects" language="sql" db="database1" target_db="database2" target_table="[dbo].[xfr_cross_db_objects]" batch_size="25000" tablock="true" check_constraints="true" fire_triggers="false" keep_nulls="true">
+            <![CDATA[
+                    SELECT [object_servername],[object_servicename],[object_database],[object_id],[object_schema],[object_name],[object_type],[object_desc],[LoadDate] FROM [dbo].[cross_db_objects] (NOLOCK);
+                 ]]>
+        </script>
+    </scripts>
+</pipeline>
