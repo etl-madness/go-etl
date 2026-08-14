@@ -5,19 +5,26 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/etl-madness/flow"
 )
 
+// Main entry point for the ETL pipeline executor
+// Parses command-line flags, validates XML and XSD, initializes the registry, and executes the pipeline.
+// Outputs results in JSON format to stdout.
+// Command-line example:
+// go run main.go -file scripts.xml -xsd schema.xsd -config CONFIG.xml -vars "TargetTable=override_table,Threshold=500" -debug
 func main() {
 	filePath := flag.String("file", "scripts.xml", "Path to XML file containing scripts and databases")
 	xsdPath := flag.String("xsd", "", "Path to XSD file for schema validation (optional)")
 	configPath := flag.String("config", "", "Optional path to CONFIG.xml file containing variable overrides")
 	validateOnly := flag.Bool("validate", false, "Validate XML schema and structure without executing pipeline")
-
-	consoleLogging := flag.Bool("console-log", false, "Enable console logging")
+	varOverrides := flag.String("vars", "", "Comma-separated key=value overrides (e.g. -vars \"TargetTable=override_table,Threshold=500\")")
+	debug := flag.Bool("debug", false, "Enable console logging")
 	flag.Parse()
-	
+
 	// 1. Optional XSD Validation Pass (runs xmllint if -xsd flag is provided)
 	if *xsdPath != "" {
 		if err := flow.ValidateXSD(*filePath, *xsdPath); err != nil {
@@ -106,6 +113,9 @@ func main() {
 		}})
 		os.Exit(1)
 	}
+	// Example parameter string (could be passed via flag, CLI arg, or env var)
+
+	applyVariableOverrides(registry, *varOverrides)
 
 	if err := registry.InitDatabases(dbConfigs); err != nil {
 		outputJSON([]flow.ScriptResult{{
@@ -118,13 +128,50 @@ func main() {
 	defer registry.CloseDatabases()
 
 	executor := flow.NewExecutor(registry)
-	executor.SetVerbose(*consoleLogging)
+	executor.SetVerbose(*debug)
 	results, execErr := executor.Execute(nodes)
 
 	outputJSON(results)
 
 	if execErr != nil {
 		os.Exit(1)
+	}
+}
+func applyVariableOverrides(r *flow.Registry, overrideStr string) {
+	if strings.TrimSpace(overrideStr) == "" {
+		return
+	}
+
+	// Split by comma
+	pairs := strings.Split(overrideStr, ",")
+	for _, pair := range pairs {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+
+		// Split by '=' delimiter (SplitN ensures values containing '=' aren't broken)
+		parts := strings.SplitN(pair, "=", 2)
+		if len(parts) != 2 {
+			fmt.Printf("Warning: Skipping malformed override parameter %q (expected format: var=value)\n", pair)
+			continue
+		}
+
+		key := strings.TrimSpace(parts[0])
+		rawVal := strings.TrimSpace(parts[1])
+
+		// Auto-detect types (int, bool, float) or default to string
+		var parsedVal interface{} = rawVal
+		if i, err := strconv.Atoi(rawVal); err == nil {
+			parsedVal = i
+		} else if b, err := strconv.ParseBool(rawVal); err == nil {
+			parsedVal = b
+		} else if f, err := strconv.ParseFloat(rawVal, 64); err == nil {
+			parsedVal = f
+		}
+
+		// Override the registry value
+		r.SetVar(key, parsedVal)
 	}
 }
 
