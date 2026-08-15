@@ -5,17 +5,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strconv"
-	"strings"
 
 	"github.com/etl-madness/flow"
 )
 
-// Main entry point for the ETL pipeline executor
-// Parses command-line flags, validates XML and XSD, initializes the registry, and executes the pipeline.
-// Outputs results in JSON format to stdout.
-// Command-line example:
-// go run main.go -file scripts.xml -xsd schema.xsd -config CONFIG.xml -vars "TargetTable=override_table,Threshold=500" -debug
 func main() {
 	filePath := flag.String("file", "scripts.xml", "Path to XML file containing scripts and databases")
 	xsdPath := flag.String("xsd", "", "Path to XSD file for schema validation (optional)")
@@ -23,6 +16,9 @@ func main() {
 	validateOnly := flag.Bool("validate", false, "Validate XML schema and structure without executing pipeline")
 	varOverrides := flag.String("vars", "", "Comma-separated key=value overrides (e.g. -vars \"TargetTable=override_table,Threshold=500\")")
 	debug := flag.Bool("debug", false, "Enable console logging")
+
+	xsltPath := flag.String("xslt", "", "Path to custom XSLT stylesheet (optional)")
+	outFile := flag.String("out", "", "Path to output file for transformed XML (optional)")
 	flag.Parse()
 
 	// 1. Optional XSD Validation Pass (runs xmllint if -xsd flag is provided)
@@ -46,6 +42,42 @@ func main() {
 			ResultsString: fmt.Sprintf("Error reading script file: %v", err),
 		}})
 		os.Exit(1)
+	}
+	if *xsltPath != "" {
+		xsltBytes, err := os.ReadFile(*xsltPath)
+		if err != nil {
+			outputJSON([]flow.ScriptResult{{
+				ScriptID:      "system",
+				ReturnCode:    1,
+				ResultsString: fmt.Sprintf("Error reading XSLT file: %v", err),
+			}})
+			os.Exit(1)
+		}
+
+		// Generate diagram prior to running XSLT transformation
+		diagram, err := generateMermaid(fileBytes)
+		if err != nil {
+			outputJSON([]flow.ScriptResult{{
+				ScriptID:      "system",
+				ReturnCode:    1,
+				ResultsString: fmt.Sprintf("Mermaid generation error: %v", err),
+			}})
+			os.Exit(1)
+		}
+
+		fileBytes, err = ProcessXSLT(fileBytes, xsltBytes, diagram)
+		if err != nil {
+			outputJSON([]flow.ScriptResult{{
+				ScriptID:      "system",
+				ReturnCode:    1,
+				ResultsString: fmt.Sprintf("XSLT processing error: %v", err),
+			}})
+			os.Exit(1)
+		}
+		if *outFile != "" {
+			os.WriteFile(*outFile, fileBytes, 0644)
+		}
+		os.Exit(0)
 	}
 
 	varConfigs, dbConfigs, nodes, err := flow.ParseXMLConfig(fileBytes)
@@ -113,7 +145,6 @@ func main() {
 		}})
 		os.Exit(1)
 	}
-	// Example parameter string (could be passed via flag, CLI arg, or env var)
 
 	applyVariableOverrides(registry, *varOverrides)
 
@@ -135,43 +166,6 @@ func main() {
 
 	if execErr != nil {
 		os.Exit(1)
-	}
-}
-func applyVariableOverrides(r *flow.Registry, overrideStr string) {
-	if strings.TrimSpace(overrideStr) == "" {
-		return
-	}
-
-	// Split by comma
-	pairs := strings.Split(overrideStr, ",")
-	for _, pair := range pairs {
-		pair = strings.TrimSpace(pair)
-		if pair == "" {
-			continue
-		}
-
-		// Split by '=' delimiter (SplitN ensures values containing '=' aren't broken)
-		parts := strings.SplitN(pair, "=", 2)
-		if len(parts) != 2 {
-			fmt.Printf("Warning: Skipping malformed override parameter %q (expected format: var=value)\n", pair)
-			continue
-		}
-
-		key := strings.TrimSpace(parts[0])
-		rawVal := strings.TrimSpace(parts[1])
-
-		// Auto-detect types (int, bool, float) or default to string
-		var parsedVal interface{} = rawVal
-		if i, err := strconv.Atoi(rawVal); err == nil {
-			parsedVal = i
-		} else if b, err := strconv.ParseBool(rawVal); err == nil {
-			parsedVal = b
-		} else if f, err := strconv.ParseFloat(rawVal, 64); err == nil {
-			parsedVal = f
-		}
-
-		// Override the registry value
-		r.SetVar(key, parsedVal)
 	}
 }
 
