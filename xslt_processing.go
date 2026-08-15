@@ -9,7 +9,7 @@ import (
 	"github.com/lestrrat-go/helium/xslt3"
 )
 
-func ProcessXSLT(xmlInput, xsltInput []byte, diagram string) ([]byte, error) {
+func ProcessXSLT(xmlInput, xsltInput []byte, diagram *string, source *string) ([]byte, error) {
 	ctx := context.Background()
 	parser := helium.NewParser()
 
@@ -33,9 +33,12 @@ func ProcessXSLT(xmlInput, xsltInput []byte, diagram string) ([]byte, error) {
 
 	// 4. Configure transformation parameters
 	inv := stylesheet.Transform(sourceDoc)
-	if diagram != "" {
+	if (diagram != nil && *diagram != "") || (source != nil && *source != "") {
 		params := xslt3.NewParameters()
-		params.SetString("diagram", diagram)
+		if diagram != nil {
+			params.SetString("diagram", *diagram)
+		}
+		params.SetString("file", *source)
 
 		// Example of passing multiple parameters:
 		// params.SetString("anotherParam", "someValue")

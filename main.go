@@ -64,8 +64,8 @@ func main() {
 			}})
 			os.Exit(1)
 		}
-
-		fileBytes, err = ProcessXSLT(fileBytes, xsltBytes, diagram)
+		
+		fileBytes, err = ProcessXSLT(fileBytes, xsltBytes, diagram, filePath)
 		if err != nil {
 			outputJSON([]flow.ScriptResult{{
 				ScriptID:      "system",

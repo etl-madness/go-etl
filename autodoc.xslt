@@ -4,12 +4,12 @@
 
     <!-- Declare parameter received from Go -->
     <xsl:param name="diagram" select="''" />
-
+    <xsl:param name="file" select="''" />
     <xsl:template match="/pipeline">
         <html lang="en" xmlns="http://www.w3.org/1999/xhtml">
             <head>
                 <meta charset="utf-8"/>
-                <title>ETL Pipeline Documentation &amp; Flowchart</title>
+                <title>ETL Pipeline Documentation &amp; Flowchart  <xsl:value-of select="$file" /> </title>
                 <!-- Marked.js & Mermaid.js CDN Libraries -->
                 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
                 <script src="https://cdn.jsdelivr.net/npm/mermaid@9/dist/mermaid.min.js"></script>
@@ -25,7 +25,7 @@
                 </style>
             </head>
             <body>
-                <h1>Pipeline Specification &amp; Flowchart</h1>
+                <h1>Pipeline Specification &amp; Flowchart <xsl:value-of select="$file" /></h1>
 
                 <!-- 1. MERMAID DIAGRAM BLOCK -->
                 <h2>Execution Flow Diagram</h2>

@@ -12,11 +12,11 @@ import (
 // ============================================================================
 // MERMAID DIAGRAM GENERATOR HELPER FUNCTIONS
 // ============================================================================
-
-func generateMermaid(xmlBytes []byte) (string, error) {
+// generateMermaid takes the XML bytes of the pipeline configuration and generates a Mermaid flowchart diagram as a string pointer.
+func generateMermaid(xmlBytes []byte) (*string, error) {
 	var pipeline DiagramPipeline
 	if err := xml.Unmarshal(xmlBytes, &pipeline); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	gen := &MermaidGenerator{}
@@ -29,7 +29,8 @@ func generateMermaid(xmlBytes []byte) (string, error) {
 		gen.builder.WriteString(fmt.Sprintf("    %s --> %s([End Pipeline])\n", lastExit, endID))
 	}
 
-	return gen.builder.String(), nil
+	result := gen.builder.String()
+	return &result, nil
 }
 
 type DiagramPipeline struct {
