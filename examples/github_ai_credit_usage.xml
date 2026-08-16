@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pipeline>
+    <!-- Pipeline Variables -->
+    <variables>
+        <!-- Connection strings & GitHub API Configuration -->
+        <variable name="Database1ConnStr" type="string" value="sqlserver://sa:Password123!@localhost:1433?database=database1&amp;trustServerCertificate=true" />
+        <variable name="GITHUB_TOKEN" type="string" value="" />
+        <variable name="GITHUB_API_URL" type="string" value="https://api.github.com/users" />
+        <variable name="GITHUB_USER" type="string" value="" />
+    </variables>
+
+    <databases>
+        <database name="database1" connection_string="{{Database1ConnStr}}" />
+    </databases>
+
+    <scripts>
+        <!-- Step 1: Ensure Target Table Exists in MSSQL -->
+        <script id="CREATE_GITHUB_COPILOT_BILLING_TABLE" language="sql" db="database1">
+            <![CDATA[
+                IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[github_copilot_billing_usage]') AND type in (N'U'))
+                BEGIN
+                    CREATE TABLE dbo.github_copilot_billing_usage (
+                        billing_usage_id INT IDENTITY(1,1) PRIMARY KEY,
+                        period_year INT NOT NULL,
+                        period_month INT NOT NULL,
+                        user_account NVARCHAR(100) NOT NULL,
+                        product VARCHAR(100) NOT NULL,
+                        sku VARCHAR(150) NOT NULL,
+                        model NVARCHAR(150) NULL,
+                        unit_type VARCHAR(50) NOT NULL,
+                        price_per_unit DECIMAL(18, 6) NOT NULL,
+                        gross_quantity DECIMAL(25, 9) NOT NULL,
+                        gross_amount DECIMAL(18, 9) NOT NULL,
+                        discount_quantity DECIMAL(25, 9) NOT NULL,
+                        discount_amount DECIMAL(18, 9) NOT NULL,
+                        net_quantity DECIMAL(25, 9) NOT NULL,
+                        net_amount DECIMAL(18, 4) NOT NULL,
+                        created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+                    );
+                END
+            ]]>
+        </script>
+
+        <!-- Step 2: Fetch GitHub Billing JSON via Go Script and output JSON payload -->
+        <script id="GET_GITHUB_BILLING" language="go" output_var="GITHUB_BILLING_JSON">
+            <![CDATA[
+                package main
+
+                import (
+                    "fmt"
+                    "io"
+                    "net/http"
+                    "host/vars/vars"
+                )
+
+                func main() {
+                    token := vars.GetString("GITHUB_TOKEN")
+                    username := vars.GetString("GITHUB_USER")
+                    uri := vars.GetString("GITHUB_API_URL")
+
+                    url := fmt.Sprintf("%s/%s/settings/billing/ai_credit/usage", uri, username)
+
+                    req, err := http.NewRequest("GET", url, nil)
+                    if err != nil {
+                        panic(fmt.Sprintf("Error creating request: %v", err))
+                    }
+
+                    req.Header.Set("Authorization", "Bearer "+token)
+                    req.Header.Set("Accept", "application/vnd.github+json")
+                    req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+
+                    client := &http.Client{}
+                    resp, err := client.Do(req)
+                    if err != nil {
+                        panic(fmt.Sprintf("Error executing request: %v", err))
+                    }
+                    defer resp.Body.Close()
+
+                    if resp.StatusCode != http.StatusOK {
+                        panic(fmt.Sprintf("GitHub API returned non-200 status: %s", resp.Status))
+                    }
+
+                    body, err := io.ReadAll(resp.Body)
+                    if err != nil {
+                        panic(fmt.Sprintf("Error reading response body: %v", err))
+                    }
+
+                    // Output pure JSON string to stdout so it gets captured by output_var
+                    fmt.Print(string(body))
+                }
+            ]]>
+        </script>
+
+        <!-- Step 3: Insert URL JSON Results into dbo.github_copilot_billing_usage using OPENJSON -->
+        <script id="LOAD_GITHUB_COPILOT_BILLING_TO_SQL" language="sql" db="database1">
+            <![CDATA[
+                INSERT INTO dbo.github_copilot_billing_usage (
+                    period_year,
+                    period_month,
+                    user_account,
+                    product,
+                    sku,
+                    model,
+                    unit_type,
+                    price_per_unit,
+                    gross_quantity,
+                    gross_amount,
+                    discount_quantity,
+                    discount_amount,
+                    net_quantity,
+                    net_amount
+                )
+                SELECT 
+                    root_data.periodYear,
+                    root_data.periodMonth,
+                    COALESCE(NULLIF(root_data.userAccount, ''), '{{GITHUB_USER}}') AS user_account,
+                    items.[product],
+                    items.[sku],
+                    items.[model],
+                    items.[unitType],
+                    items.[pricePerUnit],
+                    items.[grossQuantity],
+                    items.[grossAmount],
+                    items.[discountQuantity],
+                    items.[discountAmount],
+                    items.[netQuantity],
+                    items.[netAmount]
+                FROM OPENJSON('{{GITHUB_BILLING_JSON}}')
+                WITH (
+                    periodYear INT '$.timePeriod.year',
+                    periodMonth INT '$.timePeriod.month',
+                    userAccount NVARCHAR(100) '$.user',
+                    usageItems NVARCHAR(MAX) '$.usageItems' AS JSON
+                ) AS root_data
+                CROSS APPLY OPENJSON(root_data.usageItems)
+                WITH (
+                    [product] VARCHAR(100) '$.product',
+                    [sku] VARCHAR(150) '$.sku',
+                    [model] NVARCHAR(150) '$.model',
+                    [unitType] VARCHAR(50) '$.unitType',
+                    [pricePerUnit] DECIMAL(18, 6) '$.pricePerUnit',
+                    [grossQuantity] DECIMAL(25, 9) '$.grossQuantity',
+                    [grossAmount] DECIMAL(18, 9) '$.grossAmount',
+                    [discountQuantity] DECIMAL(25, 9) '$.discountQuantity',
+                    [discountAmount] DECIMAL(18, 9) '$.discountAmount',
+                    [netQuantity] DECIMAL(25, 9) '$.netQuantity',
+                    [netAmount] DECIMAL(18, 4) '$.netAmount'
+                ) AS items;
+            ]]>
+        </script>
+    </scripts>
+</pipeline>
