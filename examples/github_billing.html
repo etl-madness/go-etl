@@ -1,0 +1,312 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta charset="utf-8" />
+    <title>ETL Pipeline Documentation &amp; Flowchart  .\examples\github_billing.xml</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@9/dist/mermaid.min.js"></script>
+    <style>
+                    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 30px; background-color: #f8f9fa; color: #333; }
+                    h1, h2 { color: #1a252f; border-bottom: 2px solid #e9ecef; padding-bottom: 8px; }
+                    .diagram-card { background: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 30px; text-align: center; }
+                    table { width: 100%; border-collapse: collapse; margin-bottom: 25px; background: #fff; }
+                    th, td { text-align: left; padding: 10px 14px; border: 1px solid #dee2e6; }
+                    th { background-color: #e9ecef; color: #495057; }
+                    tr:nth-child(even) { background-color: #f8f9fa; }
+                    code { background-color: #f1f3f5; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
+                </style>
+  </head>
+  <body>
+    <h1>Pipeline Specification &amp; Flowchart .\examples\github_billing.xml</h1>
+    <h2>Execution Flow Diagram</h2>
+    <div class="diagram-card">
+      <div class="mermaid">flowchart TD
+    Start([Start Pipeline])
+    CREATE_GITHUB_BILLING_TABLE["CREATE_GITHUB_BILLING_TABLE&lt;br/&gt;(SQL)"]
+    Start --&gt; CREATE_GITHUB_BILLING_TABLE
+    GET_GITHUB_BILLING["GET_GITHUB_BILLING&lt;br/&gt;(GO)"]
+    CREATE_GITHUB_BILLING_TABLE --&gt; GET_GITHUB_BILLING
+    LOAD_GITHUB_BILLING_TO_SQL["LOAD_GITHUB_BILLING_TO_SQL&lt;br/&gt;(SQL)"]
+    GET_GITHUB_BILLING --&gt; LOAD_GITHUB_BILLING_TO_SQL
+    LOAD_GITHUB_BILLING_TO_SQL --&gt; End_1([End Pipeline])
+</div>
+      <script>
+                        mermaid.initialize({ startOnLoad: true });
+                    </script>
+    </div>
+    <h2>Configured Variables</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Default Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <strong>Database1ConnStr</strong>
+          </td>
+          <td>
+            <code>string</code>
+          </td>
+          <td>
+            <code>sqlserver://sa:Password123!@localhost:1433?database=database1&amp;trustServerCertificate=true</code>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <strong>GITHUB_TOKEN</strong>
+          </td>
+          <td>
+            <code>string</code>
+          </td>
+          <td>
+            <code></code>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <strong>GITHUB_API_URL</strong>
+          </td>
+          <td>
+            <code>string</code>
+          </td>
+          <td>
+            <code>https://api.github.com/users</code>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <strong>GITHUB_USER</strong>
+          </td>
+          <td>
+            <code>string</code>
+          </td>
+          <td>
+            <code></code>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <h2>Configured Databases</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Alias Name</th>
+          <th>Connection String / Variable Reference</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <strong>database1</strong>
+          </td>
+          <td>
+            <code>{{Database1ConnStr}}</code>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <h2>SCRIPTS</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Language</th>
+          <th>ID/Name</th>
+          <th>XPath Location</th>
+          <th>Source Database</th>
+          <th>Target Database</th>
+          <th>Target Table</th>
+          <th>Batch Size</th>
+          <th>Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <strong>sql</strong>
+          </td>
+          <td>
+            <strong>CREATE_GITHUB_BILLING_TABLE</strong>
+          </td>
+          <td>
+            <code>/Q{}pipeline[1]/Q{}scripts[1]/Q{}script[1]</code>
+          </td>
+          <td>
+            <code>database1</code>
+          </td>
+          <td>
+            <code>database1</code>
+          </td>
+          <td>
+            <code></code>
+          </td>
+          <td>
+            <code></code>
+          </td>
+          <td>
+            
+                IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[github_billing_usage]') AND type in (N'U'))
+                BEGIN
+                    CREATE TABLE dbo.github_billing_usage (
+                        billing_usage_id INT IDENTITY(1,1) PRIMARY KEY,
+                        user_account NVARCHAR(100) NULL,
+                        usage_date DATETIMEOFFSET NOT NULL,
+                        product VARCHAR(100) NOT NULL,
+                        sku VARCHAR(150) NOT NULL,
+                        quantity DECIMAL(25, 9) NOT NULL,
+                        unit_type VARCHAR(50) NOT NULL,
+                        price_per_unit DECIMAL(18, 6) NOT NULL,
+                        gross_amount DECIMAL(18, 9) NOT NULL,
+                        discount_amount DECIMAL(18, 9) NOT NULL,
+                        net_amount DECIMAL(18, 4) NOT NULL,
+                        repository_name NVARCHAR(255) NULL,
+                        created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+                    );
+                END
+            
+        </td>
+        </tr>
+        <tr>
+          <td>
+            <strong>go</strong>
+          </td>
+          <td>
+            <strong>GET_GITHUB_BILLING</strong>
+          </td>
+          <td>
+            <code>/Q{}pipeline[1]/Q{}scripts[1]/Q{}script[2]</code>
+          </td>
+          <td>
+            <code></code>
+          </td>
+          <td>
+            <code></code>
+          </td>
+          <td>
+            <code></code>
+          </td>
+          <td>
+            <code></code>
+          </td>
+          <td>
+            
+                package main
+
+                import (
+                    "fmt"
+                    "io"
+                    "net/http"
+                    "host/vars/vars"
+                )
+
+                func main() {
+                    token := vars.GetString("GITHUB_TOKEN")
+                    username := vars.GetString("GITHUB_USER")
+                    uri := vars.GetString("GITHUB_API_URL")
+
+                    url := fmt.Sprintf("%s/%s/settings/billing/usage", uri, username)
+
+                    req, err := http.NewRequest("GET", url, nil)
+                    if err != nil {
+                        panic(fmt.Sprintf("Error creating request: %v", err))
+                    }
+
+                    req.Header.Set("Authorization", "Bearer "+token)
+                    req.Header.Set("Accept", "application/vnd.github+json")
+                    req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+
+                    client := &amp;http.Client{}
+                    resp, err := client.Do(req)
+                    if err != nil {
+                        panic(fmt.Sprintf("Error executing request: %v", err))
+                    }
+                    defer resp.Body.Close()
+
+                    if resp.StatusCode != http.StatusOK {
+                        panic(fmt.Sprintf("GitHub API returned non-200 status: %s", resp.Status))
+                    }
+
+                    body, err := io.ReadAll(resp.Body)
+                    if err != nil {
+                        panic(fmt.Sprintf("Error reading response body: %v", err))
+                    }
+
+                    // Output pure JSON string to stdout so it gets captured by output_var
+                    fmt.Print(string(body))
+                }
+            
+        </td>
+        </tr>
+        <tr>
+          <td>
+            <strong>sql</strong>
+          </td>
+          <td>
+            <strong>LOAD_GITHUB_BILLING_TO_SQL</strong>
+          </td>
+          <td>
+            <code>/Q{}pipeline[1]/Q{}scripts[1]/Q{}script[3]</code>
+          </td>
+          <td>
+            <code>database1</code>
+          </td>
+          <td>
+            <code>database1</code>
+          </td>
+          <td>
+            <code></code>
+          </td>
+          <td>
+            <code></code>
+          </td>
+          <td>
+            
+                INSERT INTO dbo.github_billing_usage (
+                    user_account,
+                    usage_date,
+                    product,
+                    sku,
+                    quantity,
+                    unit_type,
+                    price_per_unit,
+                    gross_amount,
+                    discount_amount,
+                    net_amount,
+                    repository_name
+                )
+                SELECT 
+                    '{{GITHUB_USER}}' AS user_account,
+                    [date],
+                    [product],
+                    [sku],
+                    [quantity],
+                    [unitType],
+                    [pricePerUnit],
+                    [grossAmount],
+                    [discountAmount],
+                    [netAmount],
+                    NULLIF([repositoryName], '') AS repository_name
+                FROM OPENJSON('{{GITHUB_BILLING_JSON}}', '$.usageItems')
+                WITH (
+                    [date] DATETIMEOFFSET '$.date',
+                    [product] VARCHAR(100) '$.product',
+                    [sku] VARCHAR(150) '$.sku',
+                    [quantity] DECIMAL(25, 9) '$.quantity',
+                    [unitType] VARCHAR(50) '$.unitType',
+                    [pricePerUnit] DECIMAL(18, 6) '$.pricePerUnit',
+                    [grossAmount] DECIMAL(18, 9) '$.grossAmount',
+                    [discountAmount] DECIMAL(18, 9) '$.discountAmount',
+                    [netAmount] DECIMAL(18, 4) '$.netAmount',
+                    [repositoryName] NVARCHAR(255) '$.repositoryName'
+                );
+            
+        </td>
+        </tr>
+      </tbody>
+    </table>
+  </body>
+</html>

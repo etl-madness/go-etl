@@ -96,6 +96,17 @@ The engine natively registers and supports multiple database drivers. You can co
 ### Prerequisites
 * **Go**: Version 1.20 or later.
 * **xmllint**: (Optional) Installed and available in your system path to perform XSD schema validation.
+* **Yaegi Go Interpreter**: Embedded in the engine for executing interpreted Go scripts, required for `<script language="go">` blocks, may need to have the `GOPATH` environment variable set for package imports. In some cases you may need to explicitly pass the `--gopath` flag to the CLI runner if your Go environment is non-standard.  In the event that you are running code that needs special imports you will have to stage source clones of those packages into your GOPATH using the legacy src pathing, or install and run yaegi. Yaegi does not support `unsafe` package imports, so any Go code that uses `unsafe` will not run in the interpreted context. Under those conditions you will need to compile and run your Go code as a native binary, and use `<script language="go">` to execute it directly.
+
+**Example setting up for special packages:**
+```bash
+
+mkdir -p $GOPATH/src/somepackage-a/go
+git clone https://github.com/somepackage-a.git $GOPATH/src/somepackage-a/go
+ 
+```
+ 
+
 
 ### Getting Started
 
@@ -157,7 +168,7 @@ go run main.go --file pipeline.xml --xslt autodoc.xslt --out pipeline.html
 | `--debug` | `false` | Enables verbose console logging for debugging purposes. |
 | `--xslt` | `""` | Optional path to an XSLT file to generate HTML documentation of the pipeline. |
 | `--out` | `""` | Optional output path for the generated HTML documentation when using `--xslt`. |
-
+| `--gopath` | `os.Getenv("GOPATH")` | GOPATH directory for interpreter package imports. |
 ---
 
 ## Configuration Reference & Cheat Sheet
@@ -262,6 +273,10 @@ Allows scripts to fetch active SQL connections and perform bulk streaming operat
 * **`db.StreamETL(srcDB, query, dstDB, targetTable, batchSize, tablock, checkConstraints, fireTriggers, keepNulls) (int64, error)`**: Efficiently streams rows line-by-line from a source database query, executing chunked batch parameter queries into a target table.
  
 ---
+## Additional Resources on GO to SQL and how Variables are used, processed and passed.
+
+* [**GO_TO_SQL.md**](./docs/GO_TO_SQL.md): Detailed reference on how to use the `host/db` package for streaming ETL and executing custom SQL queries from Go scripts.
+* [**VARIABLES.md**](./docs/VARIABLES.md): Comprehensive guide on variable declaration, type handling, and cross-script variable passing.
 
 ## Configuration & Pipeline Examples
 

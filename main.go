@@ -12,14 +12,13 @@ import (
 
 func main() {
 
-
 	filePath := flag.String("file", "scripts.xml", "Path to XML file containing scripts and databases")
 	xsdPath := flag.String("xsd", "", "Path to XSD file for schema validation (optional)")
 	configPath := flag.String("config", "", "Optional path to CONFIG.xml file containing variable overrides")
 	validateOnly := flag.Bool("validate", false, "Validate XML schema and structure without executing pipeline")
 	varOverrides := flag.String("vars", "", "Comma-separated key=value overrides (e.g. -vars \"TargetTable=override_table,Threshold=500\")")
 	debug := flag.Bool("debug", false, "Enable console logging")
-
+	goPath := flag.String("gopath", os.Getenv("GOPATH"), "GOPATH directory for interpreter package imports")
 	xsltPath := flag.String("xslt", "", "Path to custom XSLT stylesheet (optional)")
 	outFile := flag.String("out", "", "Path to output file for transformed XML (optional)")
 	flag.Parse()
@@ -165,6 +164,7 @@ func main() {
 
 	executor := flow.NewExecutor(registry)
 	executor.SetVerbose(*debug)
+	executor.SetGoPath(*goPath)
 	results, execErr := executor.Execute(nodes)
 
 	outputJSON(results)
