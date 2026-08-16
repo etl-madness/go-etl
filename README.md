@@ -33,11 +33,11 @@ The engine parses pipeline definitions into an Abstract Syntax Tree (AST), valid
 graph TD
     XML[scripts.xml] -->|Parse & Merge| Config[CONFIG.xml Overrides]
     Config --> Parse[XML Parser]
-    Parse --> XSD{XSD Validation <br/> via xmllint}
-    XSD -->|Pass| AST{Semantic AST <br/> Quality Gate}
+    Parse --> XSD{"XSD Validation <br/> via xmllint"}
+    XSD -->|Pass| AST{"Semantic AST <br/> Quality Gate"}
     AST -->|Pass| Exec[Pipeline Executor]
     
-    subgraph Execution Engines
+    subgraph Engines ["Execution Engines"]
         Exec --> SQL[Multi-Engine SQL Query Executor]
         Exec --> Go[Yaegi Go Interpreter]
     end
