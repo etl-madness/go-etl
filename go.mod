@@ -2,10 +2,14 @@ module github.com/etl-madness/go-etl
 
 go 1.26.5
 
-require github.com/etl-madness/flow v1.2.0
+require (
+	github.com/etl-madness/flow v1.2.0
+	github.com/lestrrat-go/helium v0.7.0
+)
 
 require (
 	filippo.io/edwards25519 v1.2.0 // indirect
+	github.com/dlclark/regexp2 v1.12.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/go-sql-driver/mysql v1.10.0 // indirect
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect

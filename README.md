@@ -102,9 +102,9 @@ The engine natively registers and supports multiple database drivers. You can co
 #### Option A: Programmatic Integration (Public Package)
 You can import and embed the fully modular `flow` pipeline engine directly inside your custom Go applications:
 ```bash
-go get github.com/etl-madness/go-etl/pkg/flow@v1.0.0
+go get github.com/etl-madness/flow 
 ```
-See the package-specific [**`pkg/flow/README.md`**](file:///c:/Users/U00001/source/repos/etl-madness/go-etl/pkg/flow/README.md) for full developer integration guides and APIs!
+See the package-specific [**`github.com/etl-madness/flow`**](https://github.com/etl-madness/flow) for full developer integration guides and APIs!
 
 #### Option B: Standalone CLI Runner
 1. Clone or download the repository to your local workspace.
@@ -125,8 +125,11 @@ Run the engine using command line flags to specify your scripts file, schema fil
 # Basic Execution
 go run main.go --file pipeline.xml
 
-# Execution with Variable Overrides
+# Execution with Variable Overrides via Config File
 go run main.go --file pipeline.xml --config production_config.xml
+
+# Full Execution with Variable Overrides via Command Line
+go run main.go --file pipeline.xml --vars "BulkSize=1000"
 
 # Pipeline Validation Only (Does not execute scripts)
 go run main.go --file pipeline.xml --validate
@@ -136,6 +139,10 @@ go run main.go --file pipeline.xml --console-log
 
 # Full Schema Validation and Execution
 go run main.go --file pipeline.xml --xsd schema.xsd --config CONFIG.xml
+
+# Generate HTML Documentation of the Pipeline with Flowchart
+go run main.go --file pipeline.xml --xslt autodoc.xslt --out pipeline.html
+
 ```
 
 ### CLI Flag Reference
@@ -146,6 +153,10 @@ go run main.go --file pipeline.xml --xsd schema.xsd --config CONFIG.xml
 | `--config` | `""` | Optional path to an XML file containing environment variable overrides. |
 | `--xsd` | `""` | Optional path to an XSD schema file to run an XML validity check via `xmllint`. |
 | `--validate`| `false` | When true, validates XML schema and semantic structure, then exits with code 0 without executing. |
+| `--vars` | `""` | Comma-separated key=value pairs to override variables (e.g., `-vars "BatchSize=1000,TargetTable=prod_table"`). |
+| `--debug` | `false` | Enables verbose console logging for debugging purposes. |
+| `--xslt` | `""` | Optional path to an XSLT file to generate HTML documentation of the pipeline. |
+| `--out` | `""` | Optional output path for the generated HTML documentation when using `--xslt`. |
 
 ---
 
@@ -202,7 +213,12 @@ Executes code using either the SQL or Go engine.
 * `batch_size` (Optional, defaults to `500`): Chunk size for batch inserts during streaming.
 * `variable` / `var` (Optional): Variable containing code. If specified, overrides the script CDATA body (CDATA is treated as a fallback).
 * `output_var` / `out_var` (Optional): Store query output or script return string in this variable for subsequent pipeline steps.
-
+* `batch_size` (Optional, defaults to `500`): Chunk size for batch inserts during streaming.
+* `tablock` (Optional, defaults to `"false"`): Whether to use table-level locking.
+* `check_constraints` (Optional, defaults to `"true"`): Whether to enforce check constraints.
+* `fire_triggers` (Optional, defaults to `"true"`): Whether to fire triggers.
+* `keep_nulls` (Optional, defaults to `"false"`): Whether to keep null values.
+  
 #### `<group>`
 Combines multiple child nodes.
 * `id` (Optional): Identifier for the group block.
@@ -243,8 +259,8 @@ Allows scripts to query, parse, and write pipeline variables.
 ### Package `host/db`
 Allows scripts to fetch active SQL connections and perform bulk streaming operations.
 * **`db.Get(name string) (*sql.DB, error)`**: Returns the underlying native SQL Server connection pool (`*sql.DB`) for custom queries.
-* **`db.StreamETL(srcDB, query, dstDB, targetTable, batchSize) (int64, error)`**: Efficiently streams rows line-by-line from a source database query, executing chunked batch parameter queries into a target table.
-
+* **`db.StreamETL(srcDB, query, dstDB, targetTable, batchSize, tablock, checkConstraints, fireTriggers, keepNulls) (int64, error)`**: Efficiently streams rows line-by-line from a source database query, executing chunked batch parameter queries into a target table.
+ 
 ---
 
 ## Configuration & Pipeline Examples
