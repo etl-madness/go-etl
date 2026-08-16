@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta charset="utf-8" />
+    <title>ETL Pipeline Documentation &amp; Flowchart  .\scripts\mssql_trunc_bulk_copy_table.xml</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@9/dist/mermaid.min.js"></script>
+    <style>
+                    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 30px; background-color: #f8f9fa; color: #333; }
+                    h1, h2 { color: #1a252f; border-bottom: 2px solid #e9ecef; padding-bottom: 8px; }
+                    .diagram-card { background: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 30px; text-align: center; }
+                    table { width: 100%; border-collapse: collapse; margin-bottom: 25px; background: #fff; }
+                    th, td { text-align: left; padding: 10px 14px; border: 1px solid #dee2e6; }
+                    th { background-color: #e9ecef; color: #495057; }
+                    tr:nth-child(even) { background-color: #f8f9fa; }
+                    code { background-color: #f1f3f5; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
+                </style>
+  </head>
+  <body>
+    <h1>Pipeline Specification &amp; Flowchart .\scripts\mssql_trunc_bulk_copy_table.xml</h1>
+    <h2>Execution Flow Diagram</h2>
+    <div class="diagram-card">
+      <div class="mermaid">flowchart TD
+    Start([Start Pipeline])
+    GO_GET_ProcessDate["GO_GET_ProcessDate&lt;br/&gt;(GO)"]
+    Start --&gt; GO_GET_ProcessDate
+    MSSQL_TRUNCATE_xfr_cross_db_objects["MSSQL_TRUNCATE_xfr_cross_db_objects&lt;br/&gt;(SQL)"]
+    GO_GET_ProcessDate --&gt; MSSQL_TRUNCATE_xfr_cross_db_objects
+    MSSQL_BLK_STREAM_to_xfr_cross_db_objects["MSSQL_BLK_STREAM_to_xfr_cross_db_objects&lt;br/&gt;(SQL)&lt;br/&gt;➔ Stream to database2"]
+    MSSQL_TRUNCATE_xfr_cross_db_objects --&gt; MSSQL_BLK_STREAM_to_xfr_cross_db_objects
+    MSSQL_BLK_STREAM_to_xfr_cross_db_objects --&gt; End_1([End Pipeline])
+</div>
+      <script>
+                        mermaid.initialize({ startOnLoad: true });
+                    </script>
+    </div>
+    <h2>Configured Variables</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Default Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <strong>Database1ConnStr</strong>
+          </td>
+          <td>
+            <code>string</code>
+          </td>
+          <td>
+            <code>sqlserver://sa:Password123!@localhost:1433?database=database1&amp;trustServerCertificate=true</code>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <strong>Database2ConnStr</strong>
+          </td>
+          <td>
+            <code>string</code>
+          </td>
+          <td>
+            <code>sqlserver://sa:Password123!@localhost:1433?database=database2&amp;trustServerCertificate=true</code>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <h2>Configured Databases</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Alias Name</th>
+          <th>Connection String / Variable Reference</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <strong>database1</strong>
+          </td>
+          <td>
+            <code>{{Database1ConnStr}}</code>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <strong>database2</strong>
+          </td>
+          <td>
+            <code>{{Database2ConnStr}}</code>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <h2>SCRIPTS</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Language</th>
+          <th>ID/Name</th>
+          <th>XPath Location</th>
+          <th>Source Database</th>
+          <th>Target Database</th>
+          <th>Target Table</th>
+          <th>Batch Size</th>
+          <th>Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <strong>go</strong>
+          </td>
+          <td>
+            <strong>GO_GET_ProcessDate</strong>
+          </td>
+          <td>
+            <code>/Q{}pipeline[1]/Q{}scripts[1]/Q{}script[1]</code>
+          </td>
+          <td>
+            <code></code>
+          </td>
+          <td>
+            <code></code>
+          </td>
+          <td>
+            <code></code>
+          </td>
+          <td>
+            <code></code>
+          </td>
+          <td>
+            
+            package main
+                import (
+                    "fmt"
+                    "time"
+                )
+                func main() {
+                    today := time.Now().Format("2006-01-02")
+                    fmt.Println(today)
+                }   
+            
+        </td>
+        </tr>
+        <tr>
+          <td>
+            <strong>sql</strong>
+          </td>
+          <td>
+            <strong>MSSQL_TRUNCATE_xfr_cross_db_objects</strong>
+          </td>
+          <td>
+            <code>/Q{}pipeline[1]/Q{}scripts[1]/Q{}script[2]</code>
+          </td>
+          <td>
+            <code>database2</code>
+          </td>
+          <td>
+            <code>database2</code>
+          </td>
+          <td>
+            <code></code>
+          </td>
+          <td>
+            <code></code>
+          </td>
+          <td>
+            
+                    TRUNCATE TABLE [dbo].[xfr_cross_db_objects];
+                    
+        </td>
+        </tr>
+        <tr>
+          <td>
+            <strong>sql</strong>
+          </td>
+          <td>
+            <strong>MSSQL_BLK_STREAM_to_xfr_cross_db_objects</strong>
+          </td>
+          <td>
+            <code>/Q{}pipeline[1]/Q{}scripts[1]/Q{}script[3]</code>
+          </td>
+          <td>
+            <code>database1</code>
+          </td>
+          <td>
+            <code>database2</code>
+          </td>
+          <td>
+            <code>[dbo].[xfr_cross_db_objects]</code>
+          </td>
+          <td>
+            <code>25000</code>
+          </td>
+          <td>
+            
+                    SELECT [object_servername],[object_servicename],[object_database],[object_id],[object_schema],[object_name],[object_type],[object_desc],[LoadDate] FROM [dbo].[cross_db_objects] (NOLOCK);
+                 
+        </td>
+        </tr>
+      </tbody>
+    </table>
+  </body>
+</html>

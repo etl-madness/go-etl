@@ -5,11 +5,14 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/etl-madness/flow"
 )
 
 func main() {
+
+
 	filePath := flag.String("file", "scripts.xml", "Path to XML file containing scripts and databases")
 	xsdPath := flag.String("xsd", "", "Path to XSD file for schema validation (optional)")
 	configPath := flag.String("config", "", "Optional path to CONFIG.xml file containing variable overrides")
@@ -64,7 +67,7 @@ func main() {
 			}})
 			os.Exit(1)
 		}
-		
+
 		fileBytes, err = ProcessXSLT(fileBytes, xsltBytes, diagram, filePath)
 		if err != nil {
 			outputJSON([]flow.ScriptResult{{
@@ -135,6 +138,8 @@ func main() {
 	}
 
 	// 4. Initialize State and Execute Pipeline
+	start := time.Now()
+	fmt.Println("Pipeline Start Time:", start.Format("2006-01-02 15:04:05.000"))
 	registry := flow.NewRegistry()
 
 	if err := registry.InitVariables(varConfigs); err != nil {
@@ -163,7 +168,11 @@ func main() {
 	results, execErr := executor.Execute(nodes)
 
 	outputJSON(results)
+	end := time.Now()
+	duration := end.Sub(start)
 
+	fmt.Println("Pipeline End Time:  ", end.Format("2006-01-02 15:04:05.000"))
+	fmt.Println("Pipeline Duration:  ", duration)
 	if execErr != nil {
 		os.Exit(1)
 	}

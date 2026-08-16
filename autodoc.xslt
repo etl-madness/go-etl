@@ -73,6 +73,49 @@
                         </tbody>
                     </table>
                 </xsl:if>
+                <h2>SCRIPTS</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Language</th>
+                            <th>ID/Name</th>
+                            <th>XPath Location</th>
+                            <th>Source Database</th>
+                            <th>Target Database</th>
+                            <th>Target Table</th>
+                            <th>Batch Size</th>
+                            <th>Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Target matching nodes (e.g., all <script> nodes) -->
+                        <xsl:for-each select="//script">
+                            <tr>
+         
+                                <td><strong><xsl:value-of select="@language"/></strong></td>
+                                <td><strong><xsl:value-of select="@id"/></strong></td>
+                                <td><code><xsl:value-of select="path()"/></code></td>
+                                <td><code><xsl:value-of select="@db"/></code></td>
+                                <td>
+                                    <code>
+                                        <xsl:choose>
+                                            <xsl:when test="@target_db and normalize-space(@target_db) != ''">
+                                                <xsl:value-of select="@target_db"/>
+                                            </xsl:when>
+                                            <xsl:otherwise>
+                                             <xsl:value-of select="@db"/>
+                                            </xsl:otherwise>
+                                        </xsl:choose>
+                                    </code>
+                                </td>
+
+                                <td><code><xsl:value-of select="@target_table"/></code></td>
+                                <td><code><xsl:value-of select="@batch_size"/></code></td>
+                                <td><xsl:value-of select="."/></td>
+                            </tr>
+                        </xsl:for-each>
+                    </tbody>
+                </table>
 
             </body>
         </html>
