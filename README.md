@@ -91,22 +91,20 @@ The engine natively registers and supports multiple database drivers. You can co
 
 ---
 
+## Additional Resources on how go-etl/flow handles transactions and variables.
+
+* [**GO_TO_SQL.md**](./docs/GO_TO_SQL.md): Detailed reference on how to use the `host/db` package for streaming ETL and executing custom SQL queries from Go scripts.
+* [**VARIABLES.md**](./docs/VARIABLES.md): Comprehensive guide on variable declaration, type handling, and cross-script variable passing.
+* [**TRANSACTIONS.md**](./docs/TRANSACTIONS.md): Comprehensive guide on transaction management in ETL pipelines.
+* [**YAEGI_INTERPRETER.md**](./docs/YAEGI_INTERPRETER.md): Detailed reference on how to use the embedded Yaegi Go interpreter for executing interpreted Go scripts and interacting with the engine context.
+
+---
+
 ## Installation & Prerequisites
 
 ### Prerequisites
 * **Go**: Version 1.20 or later.
 * **xmllint**: (Optional) Installed and available in your system path to perform XSD schema validation.
-* **Yaegi Go Interpreter**: Embedded in the engine for executing interpreted Go scripts, required for `<script language="go">` blocks, may need to have the `GOPATH` environment variable set for package imports. In some cases you may need to explicitly pass the `--gopath` flag to the CLI runner if your Go environment is non-standard.  In the event that you are running code that needs special imports you will have to stage source clones of those packages into your GOPATH using the legacy src pathing, or install and run yaegi. Yaegi does not support `unsafe` package imports, so any Go code that uses `unsafe` will not run in the interpreted context. Under those conditions you will need to compile and run your Go code as a native binary, and use `<script language="go">` to execute it directly.
-
-**Example setting up for special packages:**
-```bash
-
-mkdir -p $GOPATH/src/somepackage-a/go
-git clone https://github.com/somepackage-a.git $GOPATH/src/somepackage-a/go
- 
-```
- 
-
 
 ### Getting Started
 
@@ -115,15 +113,18 @@ You can import and embed the fully modular `flow` pipeline engine directly insid
 ```bash
 go get github.com/etl-madness/flow 
 ```
+
 See the package-specific [**`github.com/etl-madness/flow`**](https://github.com/etl-madness/flow) for full developer integration guides and APIs!
 
 #### Option B: Standalone CLI Runner
+
 1. Clone or download the repository to your local workspace.
 2. Initialize and tidy the Go module dependencies:
 
 ```bash
 # Verify & clean dependencies
 go mod tidy
+go build
 ```
 
 ---
@@ -146,7 +147,7 @@ go run main.go --file pipeline.xml --vars "BulkSize=1000"
 go run main.go --file pipeline.xml --validate
 
 # Console Logging (Additional verbose output to stdout)
-go run main.go --file pipeline.xml --console-log
+go run main.go --file pipeline.xml --debug
 
 # Full Schema Validation and Execution
 go run main.go --file pipeline.xml --xsd schema.xsd --config CONFIG.xml
@@ -273,10 +274,6 @@ Allows scripts to fetch active SQL connections and perform bulk streaming operat
 * **`db.StreamETL(srcDB, query, dstDB, targetTable, batchSize, tablock, checkConstraints, fireTriggers, keepNulls) (int64, error)`**: Efficiently streams rows line-by-line from a source database query, executing chunked batch parameter queries into a target table.
  
 ---
-## Additional Resources on GO to SQL and how Variables are used, processed and passed.
-
-* [**GO_TO_SQL.md**](./docs/GO_TO_SQL.md): Detailed reference on how to use the `host/db` package for streaming ETL and executing custom SQL queries from Go scripts.
-* [**VARIABLES.md**](./docs/VARIABLES.md): Comprehensive guide on variable declaration, type handling, and cross-script variable passing.
 
 ## Configuration & Pipeline Examples
 
