@@ -3,7 +3,7 @@ module github.com/etl-madness/go-etl
 go 1.26.5
 
 require (
-	github.com/etl-madness/flow v1.2.2
+	github.com/etl-madness/flow v1.2.3
 	github.com/lestrrat-go/helium v0.7.0
 )
 
