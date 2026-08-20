@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/etl-madness/flow"
+	"github.com/traefik/yaegi/interp"
 )
 
 func main() {
@@ -165,6 +166,9 @@ func main() {
 	executor := flow.NewExecutor(registry)
 	executor.SetVerbose(*debug)
 	executor.SetGoPath(*goPath)
+	executor.SetInterpHook(func(opts *interp.Options) {
+		opts.Unrestricted = true
+	})
 	results, execErr := executor.Execute(nodes)
 
 	outputJSON(results)

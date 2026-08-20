@@ -75,6 +75,20 @@
                         <xs:restriction base="xs:string">
                             <xs:enumeration value="sql" />
                             <xs:enumeration value="go" />
+                            <xs:enumeration value="shell" />
+                            <xs:enumeration value="cmd" />
+                            <xs:enumeration value="powershell" />
+                            <xs:enumeration value="pwsh" />
+                            <xs:enumeration value="bash" />
+                            <xs:enumeration value="git-bash" />
+                            <xs:enumeration value="gitbash" />
+                            <xs:enumeration value="zsh" />
+                            <xs:enumeration value="ksh" />
+                            <xs:enumeration value="csh" />
+                            <xs:enumeration value="tcsh" />
+                            <xs:enumeration value="dash" />
+                            <xs:enumeration value="fish" />
+                            <xs:enumeration value="sh" />
                         </xs:restriction>
                     </xs:simpleType>
                 </xs:attribute>

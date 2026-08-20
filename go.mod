@@ -3,8 +3,9 @@ module github.com/etl-madness/go-etl
 go 1.26.5
 
 require (
-	github.com/etl-madness/flow v1.2.3
+	github.com/etl-madness/flow v1.2.6
 	github.com/lestrrat-go/helium v0.7.0
+	github.com/traefik/yaegi v0.16.1
 )
 
 require (
@@ -24,7 +25,6 @@ require (
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/sijms/go-ora/v2 v2.9.0 // indirect
-	github.com/traefik/yaegi v0.16.1 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.41.0 // indirect

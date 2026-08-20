@@ -479,6 +479,44 @@ SSIS Package with equivalent functionality processed truncate and bulk copy of 1
     </scripts>
 </pipeline>
 ```
+## 🐚 OS Shell & Command Execution
+
+`flow` supports executing native host shell commands and binaries directly on the operating system without passing through the Go interpreter[cite: 4]. Supported `language` options on `<script>` tags include:
+
+* **`shell`**: Cross-platform default shell (`cmd /C` on Windows, `sh -c` on Linux/macOS)[cite: 4].
+* **`cmd`**: Windows Command Prompt (`cmd /C`)[cite: 4].
+* **`powershell`**: Windows PowerShell (`powershell -NoProfile -NonInteractive -Command`)[cite: 4].
+* **`bash`**: GNU Bash (`bash -c`)[cite: 4].
+
+### Key Capabilities
+* **Variable Interpolation**: Use `{{var_name}}` syntax inside script bodies to dynamically inject pipeline variables[cite: 3, 4].
+* **Output Capture**: Define the `output_var` attribute to save standard output/error into a pipeline variable for downstream consumption by SQL or Go steps[cite: 2, 4].
+
+### XML Examples
+
+```xml
+<pipeline>
+    <variables>
+        <variable name="export_dir" value="C:\exports" />
+    </variables>
+    <scripts>
+        <!-- Run external executable and store output in variable -->
+        <script id="ExtractData" language="shell" output_var="GCLOUD_BILLING_JSON">
+            ..\bqBilling.exe
+        </script>
+
+        <!-- PowerShell execution with variable interpolation -->
+        <script id="PrepFolder" language="powershell">
+            New-Item -ItemType Directory -Force -Path "{{export_dir}}"
+        </script>
+
+        <!-- Bash execution -->
+        <script id="ArchiveLogs" language="bash" output_var="ARCHIVE_LOG">
+            tar -czvf {{export_dir}}/archive.tar.gz {{export_dir}}/*.csv
+        </script>
+    </scripts>
+</pipeline>
+```
 
 ---
 
