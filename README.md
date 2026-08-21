@@ -1,4 +1,4 @@
-# SSIS-like XML Script Execution Engine (go-etl)
+# SSIS-like XML Script Execution Engine (go-flow)
 
 An enterprise-grade, XML-driven multi-database pipeline executor and ETL engine written in Go. This tool enables developers to define complex, high-performance data processing pipelines that seamlessly combine interpreted Go scripts (executed in-memory via Yaegi) and SQL queries across multiple heterogeneous database engines.
 
@@ -7,7 +7,7 @@ With built-in support for environment-specific configuration overrides, strongly
 ---
 ## Comparison with SQL Server Integration Services (SSIS)
 
-| Feature / Capability | Go XML Pipeline Engine (`go-etl`) | SQL Server Integration Services (SSIS) |
+| Feature / Capability | Go XML Pipeline Engine (`go-flow`) | SQL Server Integration Services (SSIS) |
 | :--- | :--- | :--- |
 | **Architecture & Footprint** | Lightweight, cross-platform compiled Go CLI binary. Zero server installation overhead. | Heavy, server-based ETL runtime (tied to Windows/SQL Server ecosystem and SSIS Catalog). |
 | **Interface / Authoring** | Code-first declarative XML configuration (`scripts.xml`) validated against XSD schemas. | Visual GUI drag-and-drop interface via Visual Studio / SSDT. |
@@ -67,6 +67,20 @@ The engine natively registers and supports multiple database drivers. You can co
 
 ---
 
+## Supported Script Languages and OS Shell Executions
+
+`flow` supports executing native host shell commands and binaries directly on the operating system without passing through the Go interpreter[cite: 4]. Supported `language` options on `<script>` tags include:
+
+
+* **`shell`**: Cross-platform default shell (`cmd /C` on Windows, `sh -c` on Linux/macOS)[cite: 4].
+* **`cmd`**: Windows Command Prompt (`cmd /C`)[cite: 4].
+* **`powershell,pwsh`**: Windows PowerShell (`powershell -NoProfile -NonInteractive -Command`)[cite: 4].
+* **`bash,zsh,ksh,csh,tcsh,dash,fish,sh`**: Various Unix shells (`bash -c`, `zsh -c`, etc.)[cite: 4].
+* **`dotnet-script`** (or **`csx`**): Executed using C# script files with `dotnet-script` or `dotnet script`. Allows full inline C# execution including external NuGet package references (`#r "nuget: ..."`). This requires the `dotnet-script` tool to be installed on the host machine and the ability to create temporary files.
+* ***`go`**: Interpreted Go scripts executed in-memory via the embedded **Yaegi** interpreter. This allows full access to the engine's host APIs (`host/vars`, `host/db`) and dynamic variable passing between scripts.
+
+---
+
 ## Feature Highlights
 
 * 🚀 **Heterogeneous Dual-Engine Pipeline**: Run interpreted **Go scripts** dynamically in-memory via Yaegi alongside native **multi-database SQL queries** (Postgres, MySQL, SQLite, Oracle, MSSQL) within a single, unified orchestration.
@@ -91,7 +105,7 @@ The engine natively registers and supports multiple database drivers. You can co
 
 ---
 
-## Additional Resources on how go-etl/flow handles transactions and variables.
+## Additional Resources on how go-flow/flow handles transactions and variables.
 
 * [**GO_TO_SQL.md**](./docs/GO_TO_SQL.md): Detailed reference on how to use the `host/db` package for streaming ETL and executing custom SQL queries from Go scripts.
 * [**VARIABLES.md**](./docs/VARIABLES.md): Comprehensive guide on variable declaration, type handling, and cross-script variable passing.
@@ -428,10 +442,10 @@ Implements concurrent task processing with thread-pool size constraints.
 ### 5. MSSQL Bulk Copy (`mssql_trunc_copy_table.xml`)
 
 In comparison to an SSIS package executing the same truncate and dataflow, the SSIS package with equivalent functionality processed truncate and bulk copy of 12151 rows in  00:00:04.500.
-The example script below run via go-etl executed in 821.5704ms. Your mileage will vary based on network latency, database engine, and hardware.
+The example script below run via go-flow executed in 821.5704ms. Your mileage will vary based on network latency, database engine, and hardware.
 
 ```xml
-SSIS Package with equivalent functionality processed truncate and bulk copy of 12151 rows in  00:00:04.500, go-etl of below script executed in 821.5704ms.
+SSIS Package with equivalent functionality processed truncate and bulk copy of 12151 rows in  00:00:04.500, go-flow of below script executed in 821.5704ms.
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -479,14 +493,8 @@ SSIS Package with equivalent functionality processed truncate and bulk copy of 1
     </scripts>
 </pipeline>
 ```
-## 🐚 OS Shell & Command Execution
 
-`flow` supports executing native host shell commands and binaries directly on the operating system without passing through the Go interpreter[cite: 4]. Supported `language` options on `<script>` tags include:
 
-* **`shell`**: Cross-platform default shell (`cmd /C` on Windows, `sh -c` on Linux/macOS)[cite: 4].
-* **`cmd`**: Windows Command Prompt (`cmd /C`)[cite: 4].
-* **`powershell`**: Windows PowerShell (`powershell -NoProfile -NonInteractive -Command`)[cite: 4].
-* **`bash`**: GNU Bash (`bash -c`)[cite: 4].
 
 ### Key Capabilities
 * **Variable Interpolation**: Use `{{var_name}}` syntax inside script bodies to dynamically inject pipeline variables[cite: 3, 4].

@@ -175,3 +175,166 @@ Embedded Go scripts interact with the host pipeline registry via the `host/vars/
     </scripts>
 </pipeline>
 ```
+
+### Setting Variables in Scripts
+
+#### Go Scripts (`output_var` / Stdout Capture)
+Because the Yaegi host bindings do not expose a variable mutation method, you write values to variables by printing them to **stdout**. The `output_var` attribute will capture the printed console output and store it as a string variable.
+
+```xml
+<script id="CalculateStats" language="go" output_var="ResultScore">
+    package main
+    import "fmt"
+    func main() {
+        score := 98.4
+        // Captured directly by "ResultScore"
+        fmt.Printf("%.1f", score)
+    }
+</script>
+```
+
+#### C# Scripts (`output_var` / Stdout Capture)
+Similar to Go and shell scripts, `dotnet-script` outputs to **stdout** are captured by the `output_var` attribute and stored back into the pipeline variable registry.
+
+```xml
+<script id="CsharpCalc" language="dotnet-script" output_var="ResultSum">
+    using System;
+    int a = 10;
+    int b = 20;
+    Console.Write(a + b); // Captured directly by "ResultSum"
+</script>
+```
+---
+
+#### Example A: Exporting Multiple Parameters (Comma-Separated Output)
+When you need to output multiple distinct values from a script to be consumed as separate parameters in a subsequent step, you can format the output as a delimited string and parse it inside the next Go script.
+
+```xml
+<pipeline>
+    <scripts>
+        <!-- Step 1: Export a delimited config from Go -->
+        <script id="GenerateParams" language="go" output_var="MultiParams">
+            package main
+            import "fmt"
+            func main() {
+                env := "production"
+                retries := 5
+                timeout := 30
+                fmt.Printf("%s,%d,%d", env, retries, timeout)
+            }
+        </script>
+
+        <!-- Step 2: Consume and split parameters inside another Go script -->
+        <script id="UseParams" language="go">
+            package main
+            import (
+                "fmt"
+                "strings"
+                "strconv"
+                "host/vars/vars"
+            )
+            func main() {
+                raw := vars.GetString("MultiParams")
+                parts := strings.Split(raw, ",")
+                if len(parts) == 3 {
+                    env := parts[0]
+                    retries, _ := strconv.Atoi(parts[1])
+                    timeout, _ := strconv.Atoi(parts[2])
+                    fmt.Printf("Env: %s, Retries: %d, Timeout: %d\n", env, retries, timeout)
+                }
+            }
+        </script>
+    </scripts>
+</pipeline>
+```
+
+#### Example B: Passing JSON Output Between Scripts
+For complex, structured data, you can output a JSON string, capture it, and parse it back into typed structs in subsequent dynamic Go scripts.
+
+```xml
+<pipeline>
+    <scripts>
+        <!-- Step 1: Query database config details, formatting output as JSON -->
+        <script id="FetchServiceConfig" language="go" output_var="ServiceJSON">
+            package main
+            import (
+                "encoding/json"
+                "fmt"
+            )
+            type ConnectionDetails struct {
+                Host string `json:"host"`
+                Port int    `json:"port"`
+                SSL  bool   `json:"ssl"`
+            }
+            func main() {
+                cfg := ConnectionDetails{
+                    Host: "db-replica.internal",
+                    Port: 5432,
+                    SSL:  true,
+                }
+                bytes, _ := json.Marshal(cfg)
+                fmt.Println(string(bytes))
+            }
+        </script>
+
+        <!-- Step 2: Unmarshal and utilize the JSON payload in a subsequent step -->
+        <script id="ConnectToService" language="go">
+            package main
+            import (
+                "encoding/json"
+                "fmt"
+                "host/vars/vars"
+            )
+            type ConnectionDetails struct {
+                Host string `json:"host"`
+                Port int    `json:"port"`
+                SSL  bool   `json:"ssl"`
+            }
+            func main() {
+                jsonStr := vars.GetString("ServiceJSON")
+                var cfg ConnectionDetails
+                if err := json.Unmarshal([]byte(jsonStr), &cfg); err != nil {
+                    fmt.Printf("Failed to unmarshal config: %v\n", err)
+                    return
+                }
+                fmt.Printf("Successfully established connection to %s:%d (SSL: %t)\n", cfg.Host, cfg.Port, cfg.SSL)
+            }
+        </script>
+    </scripts>
+</pipeline>
+```
+
+#### Example C: Inter-operating Go and C# Scripts
+You can easily pass state between dynamic Go interpreter scripts and C# process-executed scripts using variables.
+
+```xml
+<pipeline>
+    <variables>
+        <variable name="Threshold" type="int" value="42" />
+    </variables>
+    <scripts>
+        <!-- Step 1: Read Threshold variable in C#, run calculations, and store output -->
+        <script id="CsharpStep" language="dotnet-script" output_var="CS_Result">
+            using System;
+            string rawThreshold = Environment.GetEnvironmentVariable("Threshold");
+            if (int.TryParse(rawThreshold, out int threshold)) {
+                Console.Write($"Threshold was {threshold}, calculated result is {threshold * 2}");
+            }
+        </script>
+
+        <!-- Step 2: Use the C# result inside a Go script -->
+        <script id="GoStep" language="go">
+            package main
+            import (
+                "fmt"
+                "host/vars/vars"
+            )
+            func main() {
+                csVal := vars.GetString("CS_Result")
+                fmt.Printf("Go received from C#: %s\n", csVal)
+            }
+        </script>
+    </scripts>
+</pipeline>
+```
+

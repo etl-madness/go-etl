@@ -89,6 +89,8 @@
                             <xs:enumeration value="dash" />
                             <xs:enumeration value="fish" />
                             <xs:enumeration value="sh" />
+                            <xs:enumeration value="dotnet-script" />
+                            <xs:enumeration value="csx" />
                         </xs:restriction>
                     </xs:simpleType>
                 </xs:attribute>
