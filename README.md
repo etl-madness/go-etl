@@ -18,11 +18,11 @@ With built-in support for environment-specific configuration overrides, strongly
 | **Control Flow: Parallelism** | `<parallel max_threads="N">` concurrency control with thread-pool workers. | Engine-level parallel execution of disconnected tasks or `EngineThreads` settings in Data Flow. |
 | **Custom Code Execution** | Pure Go embedded scripting via **Yaegi** interpreter with full host variable/DB connection exposure. | *Script Task* and *Script Component* using C# or VB.NET. |
 | **In-Memory Streaming ETL** | Direct stream ETL (`target_db` / `target_table`) with automatic driver-aware batch parameterization (`@p1`, `$1`, `?`, `:1`). | Pipeline buffer transformation engine (*Data Flow Tasks*) using memory buffers. |
-| **In-Memory MSSQL Bulk Copy** |  Direct stream ETL (`target_db` / `target_table`) with customizable options such as batch_size="25000" tablock="true" check_constraints="true" fire_triggers="false" keep_nulls="true". | *Bulk Insert Task* or *Data Flow Task* with `OLE DB Destination` using `Table or View - Fast Load`. |
+| **In-Memory MSSQL Bulk Copy** | Direct stream ETL (`target_db` / `target_table`) with customizable options such as `batch_size="25000" tablock="true" check_constraints="true" fire_triggers="false" keep_nulls="true"`. | *Bulk Insert Task* or *Data Flow Task* with `OLE DB Destination` using `Table or View - Fast Load`. |
 | **In-Memory Variable Passing** | Dynamic variable passing between scripts via `output_var` or implicit `LAST_OUTPUT`. | SSIS *Variables* with scope and expression evaluation. |
 | **Configuration & Overrides** | Standard XML file overrides (`-config`) allowing easy separation of dev/prod settings without env variables. | Project Parameters, Package Parameters, Configuration Files (dtsConfig), and Environment Overrides in SSIS Catalog. |
 | **Validation / Quality Gates** | Two-pass gate: Automated **XSD schema validation** (`xmllint`) + **Semantic AST validation** (broken refs, missing DBs) prior to run. | Visual Studio design-time validation and package-level validation phases. |
-| **Output & Reporting** | Structured machine-readable **JSON array** outputting return codes, script output strings, and logs to `stdout`. | Logging to SSISDB Catalog tables, Event Viewer, text logs, or SQL Server tables. |
+| **Output & Reporting** | Structured machine-readable **JSON array** outputting return codes, script output strings, and logs to `stdout`. Interactive HTML or GitHub-native Markdown pipeline docs via XSLT. | Logging to SSISDB Catalog tables, Event Viewer, text logs, or SQL Server tables. |
 | **CI/CD & Version Control** | Git-friendly text/XML files; runs seamlessly in lightweight Docker containers, GitHub Actions, or Kubernetes jobs. | XML-backed `.dtsx` files (often difficult to diff/merge in Git); requires Visual Studio or ISDeploymentWizard to deploy. |
 
 ## Architecture Overview
@@ -69,15 +69,14 @@ The engine natively registers and supports multiple database drivers. You can co
 
 ## Supported Script Languages and OS Shell Executions
 
-`flow` supports executing native host shell commands and binaries directly on the operating system without passing through the Go interpreter[cite: 4]. Supported `language` options on `<script>` tags include:
+`flow` supports executing native host shell commands and binaries directly on the operating system without passing through the Go interpreter. Supported `language` options on `<script>` tags include:
 
-
-* **`shell`**: Cross-platform default shell (`cmd /C` on Windows, `sh -c` on Linux/macOS)[cite: 4].
-* **`cmd`**: Windows Command Prompt (`cmd /C`)[cite: 4].
-* **`powershell,pwsh`**: Windows PowerShell (`powershell -NoProfile -NonInteractive -Command`)[cite: 4].
-* **`bash,zsh,ksh,csh,tcsh,dash,fish,sh`**: Various Unix shells (`bash -c`, `zsh -c`, etc.)[cite: 4].
+* **`shell`**: Cross-platform default shell (`cmd /C` on Windows, `sh -c` on Linux/macOS).
+* **`cmd`**: Windows Command Prompt (`cmd /C`).
+* **`powershell,pwsh`**: Windows PowerShell (`powershell -NoProfile -NonInteractive -Command`).
+* **`bash,zsh,ksh,csh,tcsh,dash,fish,sh`**: Various Unix shells (`bash -c`, `zsh -c`, etc.).
 * **`dotnet-script`** (or **`csx`**): Executed using C# script files with `dotnet-script` or `dotnet script`. Allows full inline C# execution including external NuGet package references (`#r "nuget: ..."`). This requires the `dotnet-script` tool to be installed on the host machine and the ability to create temporary files.
-* ***`go`**: Interpreted Go scripts executed in-memory via the embedded **Yaegi** interpreter. This allows full access to the engine's host APIs (`host/vars`, `host/db`) and dynamic variable passing between scripts.
+* **`go`**: Interpreted Go scripts executed in-memory via the embedded **Yaegi** interpreter. This allows full access to the engine's host APIs (`host/vars`, `host/db`) and dynamic variable passing between scripts.
 
 ---
 
@@ -102,15 +101,6 @@ The engine natively registers and supports multiple database drivers. You can co
 * 🔗 **Dynamic Connection String Templating**: Define variables and automatically inject them into database connection strings using `{{VarName}}` placeholders.
 * 🔄 **Cross-Script Data Passing**: Dynamically pass outputs between blocks using `output_var` attributes or the implicit `LAST_OUTPUT` context variable.
 * 🛡️ **Fail-Fast sequential execution**: Halts execution immediately if any step encounters a panic, query syntax error, or unhandled Go error, outputting a complete JSON report up to the failure point.
-
----
-
-## Additional Resources on how go-flow/flow handles transactions and variables.
-
-* [**GO_TO_SQL.md**](./docs/GO_TO_SQL.md): Detailed reference on how to use the `host/db` package for streaming ETL and executing custom SQL queries from Go scripts.
-* [**VARIABLES.md**](./docs/VARIABLES.md): Comprehensive guide on variable declaration, type handling, and cross-script variable passing.
-* [**TRANSACTIONS.md**](./docs/TRANSACTIONS.md): Comprehensive guide on transaction management in ETL pipelines.
-* [**YAEGI_INTERPRETER.md**](./docs/YAEGI_INTERPRETER.md): Detailed reference on how to use the embedded Yaegi Go interpreter for executing interpreted Go scripts and interacting with the engine context.
 
 ---
 
@@ -166,9 +156,11 @@ go run main.go --file pipeline.xml --debug
 # Full Schema Validation and Execution
 go run main.go --file pipeline.xml --xsd schema.xsd --config CONFIG.xml
 
-# Generate HTML Documentation of the Pipeline with Flowchart
+# Generate Interactive HTML Documentation with Flowchart
 go run main.go --file pipeline.xml --xslt autodoc.xslt --out pipeline.html
 
+# Generate GitHub-Native Markdown Documentation with Flowchart
+go run main.go --file pipeline.xml --xslt autodoc_md.xslt --out pipeline.md
 ```
 
 ### CLI Flag Reference
@@ -181,9 +173,39 @@ go run main.go --file pipeline.xml --xslt autodoc.xslt --out pipeline.html
 | `--validate`| `false` | When true, validates XML schema and semantic structure, then exits with code 0 without executing. |
 | `--vars` | `""` | Comma-separated key=value pairs to override variables (e.g., `-vars "BatchSize=1000,TargetTable=prod_table"`). |
 | `--debug` | `false` | Enables verbose console logging for debugging purposes. |
-| `--xslt` | `""` | Optional path to an XSLT file to generate HTML documentation of the pipeline. |
-| `--out` | `""` | Optional output path for the generated HTML documentation when using `--xslt`. |
+| `--xslt` | `""` | Optional path to an XSLT transformation file (`autodoc.xslt` for HTML or `autodoc_md.xslt` for Markdown). |
+| `--out` | `""` | Destination output file path for generated documentation (e.g., `pipeline.html` or `pipeline.md`). |
 | `--gopath` | `os.Getenv("GOPATH")` | GOPATH directory for interpreter package imports. |
+| `--format` | `json` | Output format for pipeline results: `json`, `jsonpretty`, `text`, or `markdown`. |
+
+---
+
+## Generating Pipeline Documentation (XSLT)
+
+`go-flow` includes built-in XSLT transformation capabilities that automatically convert XML pipeline files into clean, comprehensive technical documentation complete with interactive execution flowcharts.
+
+### Supported Output Formats
+
+#### 1. Interactive HTML Output (`autodoc.xslt`)
+Generates a styled, single-file HTML document featuring:
+* Embedded **Mermaid.js** flowchart diagrams that render visually in any modern web browser.
+* Clean CSS tables detailing configured variables, database connection strings, and script attributes.
+* Formatted source code blocks displaying SQL/Go step values.
+
+```bash
+go run main.go --file pipeline.xml --xslt autodoc.xslt --out pipeline.html
+```
+
+#### 2. GitHub-Native Markdown Output (`autodoc_md.xslt`)
+Generates a plain Markdown (`.md`) file optimized for version control, GitHub/GitLab rendering, and static site generators (MkDocs, Hugo) featuring:
+* Native ````mermaid ```` code blocks that auto-render interactive flowcharts directly inside GitHub pull requests and repositories.
+* Markdown-formatted data tables for variables, databases, and pipeline scripts.
+* Escaped multiline script content wrapped inside HTML `<code>` blocks to preserve line formatting without breaking table alignment.
+
+```bash
+go run main.go --file pipeline.xml --xslt autodoc_md.xslt --out pipeline.md
+```
+
 ---
 
 ## Configuration Reference & Cheat Sheet
@@ -239,7 +261,6 @@ Executes code using either the SQL or Go engine.
 * `batch_size` (Optional, defaults to `500`): Chunk size for batch inserts during streaming.
 * `variable` / `var` (Optional): Variable containing code. If specified, overrides the script CDATA body (CDATA is treated as a fallback).
 * `output_var` / `out_var` (Optional): Store query output or script return string in this variable for subsequent pipeline steps.
-* `batch_size` (Optional, defaults to `500`): Chunk size for batch inserts during streaming.
 * `tablock` (Optional, defaults to `"false"`): Whether to use table-level locking.
 * `check_constraints` (Optional, defaults to `"true"`): Whether to enforce check constraints.
 * `fire_triggers` (Optional, defaults to `"true"`): Whether to fire triggers.
@@ -400,7 +421,8 @@ Queries databases, maps output columns directly into temporary context variables
                         regionID := vars.GetString("database_id")
                         regionName := vars.GetString("name")
                         loopIdx := vars.GetInt("LOOP_INDEX")
-                        fmt.Printf("[Iteration %d] Go script processing %s (ID: %s)\n", loopIdx, regionName, regionID)
+                        fmt.Printf("[Iteration %d] Go script processing %s (ID: %s)
+", loopIdx, regionName, regionID)
                     }
                     ]]>
                 </script>
@@ -441,21 +463,15 @@ Implements concurrent task processing with thread-pool size constraints.
 
 ### 5. MSSQL Bulk Copy (`mssql_trunc_copy_table.xml`)
 
-In comparison to an SSIS package executing the same truncate and dataflow, the SSIS package with equivalent functionality processed truncate and bulk copy of 12151 rows in  00:00:04.500.
-The example script below run via go-flow executed in 821.5704ms. Your mileage will vary based on network latency, database engine, and hardware.
-
-```xml
-SSIS Package with equivalent functionality processed truncate and bulk copy of 12151 rows in  00:00:04.500, go-flow of below script executed in 821.5704ms.
+In comparison to an SSIS package executing the same truncate and dataflow, the SSIS package with equivalent functionality processed truncate and bulk copy of 12151 rows in 00:00:04.500.
+The example script below run via `go-flow` executed in 821.5704ms. Your mileage will vary based on network latency, database engine, and hardware.
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <pipeline>
     <variables>
-        <!-- Connection strings (Replace with actual SQL Server connection details if needed) -->
         <variable name="Database1ConnStr" type="string" value="sqlserver://sa:Password123!@localhost:1433?database=database1&amp;trustServerCertificate=true" />
         <variable name="Database2ConnStr" type="string" value="sqlserver://sa:Password123!@localhost:1433?database=database2&amp;trustServerCertificate=true" />
-
-        <!-- Initial value for ProcessDate -->
     </variables>
 
     <databases>
@@ -464,8 +480,6 @@ SSIS Package with equivalent functionality processed truncate and bulk copy of 1
     </databases>
 
     <scripts>
-        <!-- 1. Fetch ProcessDate (today's date in format YYYY-MM-DD) and set to ProcessDate variable -->
-
         <script id="GO_GET_ProcessDate" language="go">
             <![CDATA[
             package main
@@ -494,11 +508,9 @@ SSIS Package with equivalent functionality processed truncate and bulk copy of 1
 </pipeline>
 ```
 
-
-
 ### Key Capabilities
-* **Variable Interpolation**: Use `{{var_name}}` syntax inside script bodies to dynamically inject pipeline variables[cite: 3, 4].
-* **Output Capture**: Define the `output_var` attribute to save standard output/error into a pipeline variable for downstream consumption by SQL or Go steps[cite: 2, 4].
+* **Variable Interpolation**: Use `{{var_name}}` syntax inside script bodies to dynamically inject pipeline variables.
+* **Output Capture**: Define the `output_var` attribute to save standard output/error into a pipeline variable for downstream consumption by SQL or Go steps.
 
 ### XML Examples
 
@@ -510,7 +522,7 @@ SSIS Package with equivalent functionality processed truncate and bulk copy of 1
     <scripts>
         <!-- Run external executable and store output in variable -->
         <script id="ExtractData" language="shell" output_var="GCLOUD_BILLING_JSON">
-            ..\bqBilling.exe
+            ..qBilling.exe
         </script>
 
         <!-- PowerShell execution with variable interpolation -->
@@ -552,13 +564,15 @@ When the engine finishes executing, it outputs a clean, machine-readable JSON ar
   {
     "script_id": "setup_target",
     "return_code": 0,
-    "results_string": "(0 row(s) returned)\n",
+    "results_string": "(0 row(s) returned)
+",
     "duration": "12.34ms"
   },
   {
     "script_id": "stream_sql",
     "return_code": 0,
-    "results_string": "Streamed 4 row(s) directly to analytics_db.dbo.DirectStreamAudit\n",
+    "results_string": "Streamed 4 row(s) directly to analytics_db.dbo.DirectStreamAudit
+",
     "duration": "45.67ms"
   }
 ]

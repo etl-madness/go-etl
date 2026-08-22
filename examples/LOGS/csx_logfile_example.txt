@@ -1,0 +1,12 @@
+You must install or update .NET to run this application.
+
+App: C:\Tools\dotnet-script.dll
+Architecture: x64
+Framework: 'Microsoft.NETCore.App', version '8.0.0' (x64)
+.NET location: C:\Program Files\dotnet\
+
+The following frameworks were found:
+  10.0.0 at [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
+
+Learn about framework resolution:
+https://aka.ms/dotnet/missing-app-runtime

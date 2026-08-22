@@ -1,10 +1,10 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/etl-madness/flow"
@@ -14,6 +14,7 @@ import (
 func main() {
 
 	filePath := flag.String("file", "scripts.xml", "Path to XML file containing scripts and databases")
+	format := flag.String("format", "json", "Output format (json,jsonpretty, text, or markdown)")
 	xsdPath := flag.String("xsd", "", "Path to XSD file for schema validation (optional)")
 	configPath := flag.String("config", "", "Optional path to CONFIG.xml file containing variable overrides")
 	validateOnly := flag.Bool("validate", false, "Validate XML schema and structure without executing pipeline")
@@ -170,8 +171,17 @@ func main() {
 		opts.Unrestricted = true
 	})
 	results, execErr := executor.Execute(nodes)
-
-	outputJSON(results)
+	switch strings.ToLower(*format) {
+	case "markdown", "md", "table":
+		outputMarkdownTable(results)
+	case "text":
+		outputText(results)
+	case "json":
+		outputRawJSON(results)
+	default:
+		outputJSON(results)
+	}
+	// outputJSON(results)
 	end := time.Now()
 	duration := end.Sub(start)
 
@@ -180,13 +190,4 @@ func main() {
 	if execErr != nil {
 		os.Exit(1)
 	}
-}
-
-func outputJSON(res any) {
-	jsonBytes, err := json.MarshalIndent(res, "", "  ")
-	if err != nil {
-		fmt.Printf("[{\"script_id\": \"system\", \"return_code\": 1, \"results_string\": \"JSON encoding error: %v\"}]\n", err)
-		return
-	}
-	fmt.Println(string(jsonBytes))
 }

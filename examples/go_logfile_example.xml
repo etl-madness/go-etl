@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pipeline>
+    <!-- Pipeline Variables -->
+    <variables>
+        <variable name="JilPath" type="string" value="./examples/JIL/csx_logfile_example.jil" />
+        <variable name="Database1ConnStr" type="string" value="sqlserver://sa:Password123!@localhost:1433?database=database1&amp;trustServerCertificate=true" />
+
+    </variables>
+
+    <databases>
+        <database name="database1" connection_string="{{Database1ConnStr}}" />
+    </databases>
+
+    <scripts>
+        <!-- Step 1: Script A runs and stores its output ('true' or 'false') into 'ScriptAResult' -->
+        <script id="is_data_uptodate" language="sql" db="database1" output_var="DATA_UPTODATE">
+            <![CDATA[
+            SELECT CASE 
+                WHEN EXISTS (
+                    SELECT 1 
+                    FROM [PROTO].[dbo].[GcpBillingExport]
+                    WHERE CONVERT(DATE, ExportTime) = CONVERT(DATE, GETUTCDATE())
+                ) THEN 'true' 
+                ELSE 'false' 
+            END AS [DATA_UPTODATE];
+        ]]>
+        </script>
+        <if var="DATA_UPTODATE" equals="false">
+            <then>
+                <script id="parse_jil_command" language="go" output_variable="FilePath">
+                    <![CDATA[
+            package main
+
+            import (
+                "bufio"
+                "fmt"
+                "os"
+                "regexp"
+                "strings"
+                "host/vars/vars"
+            )
+
+            func main() {
+                jilPath := vars.GetString("JilPath")
+                if jilPath == "" {
+                    jilPath = "job.jil"
+                }
+
+                file, err := os.Open(jilPath)
+                if err != nil {
+                    fmt.Printf("Error: File '%s' not found.", jilPath)
+                    return
+                }
+                defer file.Close()
+
+                re := regexp.MustCompile(`(?i)^\s*command:\s*"?([^"\r\n]+)"?\s*$`)
+                scanner := bufio.NewScanner(file)
+                var commandPath string
+
+                for scanner.Scan() {
+                    line := scanner.Text()
+                    matches := re.FindStringSubmatch(line)
+                    if len(matches) > 1 {
+                        commandPath = strings.Trim(strings.TrimSpace(matches[1]), `"`)
+                        break
+                    }
+                }
+
+                if commandPath != "" {
+                    fmt.Print(commandPath)
+                } else {
+                    fmt.Print("Error: 'command:' definition not found in JIL file.")
+                }
+            }
+            ]]>
+                </script>
+
+                <!-- Step 2: Extract LOG_FILE line from BAT file -->
+                <script id="find_log_in_file" language="go" output_variable="LOGFILE_RESULTS">
+                    <![CDATA[
+            package main
+
+            import (
+                "bufio"
+                "fmt"
+                "os"
+                "regexp"
+                "strings"
+                "host/vars/vars"
+            )
+
+            func main() {
+                targetPath := vars.GetString("FilePath")
+                if targetPath == "" {
+                    targetPath = "setup.bat"
+                }
+
+                file, err := os.Open(targetPath)
+                if err != nil {
+                    fmt.Printf("Error: File '%s' not found.", targetPath)
+                    return
+                }
+                defer file.Close()
+
+                re := regexp.MustCompile(`(?i)^\s*SET\s+"?\s*LOG_FILE\s*=\s*"?(.*?)"?\s*$`)
+                scanner := bufio.NewScanner(file)
+                var logFile string
+
+                for scanner.Scan() {
+                    line := scanner.Text()
+                    matches := re.FindStringSubmatch(line)
+                    if len(matches) > 1 {
+                        logFile = strings.Trim(strings.TrimSpace(matches[1]), `"`)
+                        break
+                    }
+                }
+
+                if logFile != "" {
+                    fmt.Print(logFile)
+                } else {
+                    fmt.Print("Error: 'SET LOG_FILE' line not found in file.")
+                }
+            }
+            ]]>
+                </script>
+
+                <!-- Step 3: Read Log File Content and Output formatted JSON -->
+                <script id="read_log_content" language="go">
+                    <![CDATA[
+           package main
+
+            import (
+                "bytes"
+                "encoding/json"
+                "fmt"
+                "os"
+                "path/filepath"
+                "strings"
+                "time"
+                "host/vars/vars"
+            )
+
+            type Response struct {
+                Content   string `json:"content"`
+                Timestamp string `json:"timestamp"`
+                Status    string `json:"status"`
+            }
+
+            func main() {
+                batPath := vars.GetString("FilePath")
+                rawLogPath := vars.GetString("LOGFILE_RESULTS")
+
+                if strings.TrimSpace(rawLogPath) == "" {
+                    fmt.Println("Error: 'LOGFILE_RESULTS' is empty.")
+                    return
+                }
+
+                cleanLogPath := filepath.FromSlash(strings.ReplaceAll(rawLogPath, "\\", "/"))
+                resolvedPath := cleanLogPath
+
+                if _, err := os.Stat(resolvedPath); os.IsNotExist(err) {
+                    if batPath != "" {
+                        batDir := filepath.Dir(batPath)
+                        fallback := filepath.Join(batDir, cleanLogPath)
+                        if _, err := os.Stat(fallback); err == nil {
+                            resolvedPath = fallback
+                        }
+                    }
+                }
+
+                contentBytes, err := os.ReadFile(resolvedPath)
+                if err != nil {
+                    fmt.Printf("Error: Log file not found at '%s'\n", resolvedPath)
+                    return
+                }
+
+                // 1. Convert CRLF (\r\n) to LF (\n) to clean up line returns
+                cleanContent := strings.ReplaceAll(string(contentBytes), "\r\n", "\n")
+                cleanContent = strings.ReplaceAll(cleanContent, "\r", "")
+
+                res := Response{
+                    Content:   cleanContent,
+                    Timestamp: time.Now().UTC().Format(time.RFC3339),
+                    Status:    "Success",
+                }
+
+                // 2. Disable HTML escaping so single quotes (') don't become \u0027
+                var buf bytes.Buffer
+                enc := json.NewEncoder(&buf)
+                enc.SetEscapeHTML(false)
+                enc.SetIndent("", "  ")
+                if err := enc.Encode(res); err != nil {
+                    fmt.Printf("Error encoding JSON: %v\n", err)
+                    return
+                }
+
+                fmt.Print(strings.TrimRight(buf.String(), "\n"))
+            }
+            ]]>
+                </script>
+            </then>
+            <else>
+                <script id="data_uptodate_message" language="go">
+                    <![CDATA[
+            package main
+            import (
+                "fmt"
+            )
+            func main() {
+                fmt.Println("Data is up-to-date. No further action required.")
+            }
+            ]]>
+                </script>
+            </else>
+        </if>
+    </scripts>
+</pipeline>

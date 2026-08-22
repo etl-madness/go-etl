@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pipeline>
+    <!-- Pipeline Variables -->
+    <variables>
+        <variable name="JilPath" type="string" value="./examples/JIL/csx_logfile_example.jil" />
+        <variable name="Database1ConnStr" type="string" value="sqlserver://sa:Password123!@localhost:1433?database=database1&amp;trustServerCertificate=true" />
+    </variables>
+
+    <databases>
+        <database name="database1" connection_string="{{Database1ConnStr}}" />
+    </databases>
+
+    <scripts>
+        <!-- Step 1: Query if data is up to date -->
+        <script id="is_data_uptodate" language="sql" db="database1" output_var="DATA_UPTODATE">
+            <![CDATA[
+            SELECT CASE 
+                WHEN EXISTS (
+                    SELECT 1 
+                    FROM [PROTO].[dbo].[GcpBillingExport]
+                    WHERE CONVERT(DATE, ExportTime) = CONVERT(DATE, GETUTCDATE())
+                ) THEN 'true' 
+                ELSE 'false' 
+            END AS [DATA_UPTODATE];
+        ]]>
+        </script>
+
+        <if var="DATA_UPTODATE" equals="false">
+            <then>
+                <!-- Step 2: Parse JIL file command using CSX -->
+                <script id="parse_jil_command" language="csx" output_variable="FilePath">
+                    <![CDATA[
+                    using System;
+                    using System.IO;
+                    using System.Text.RegularExpressions;
+
+                    string jilPath = Environment.GetEnvironmentVariable("JilPath") ?? "job.jil";
+
+                    if (!File.Exists(jilPath))
+                    {
+                        Console.WriteLine($"Error: File '{jilPath}' not found.");
+                        return;
+                    }
+
+                    Regex pattern = new Regex(@"^\s*command:\s*""?(?<cmd>[^""\r\n]+)""?\s*$", RegexOptions.IgnoreCase);
+                    string commandPath = string.Empty;
+
+                    foreach (string line in File.ReadLines(jilPath))
+                    {
+                        Match match = pattern.Match(line);
+                        if (match.Success)
+                        {
+                            commandPath = match.Groups["cmd"].Value.Trim().Trim('"').Replace('\\', '/');
+                            break;
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(commandPath))
+                    {
+                        Console.Write(commandPath);
+                    }
+                    else
+                    {
+                        Console.WriteLine("Error: 'command:' definition not found in JIL file.");
+                    }
+                    ]]>
+                </script>
+
+                <!-- Step 3: Extract LOG_FILE line from BAT file using CSX -->
+                <script id="find_log_in_file" language="csx" output_variable="LOGFILE_RESULTS">
+                    <![CDATA[
+                    using System;
+                    using System.IO;
+                    using System.Text.RegularExpressions;
+
+                    string targetPath = Environment.GetEnvironmentVariable("FilePath") ?? "setup.bat";
+
+                    if (!File.Exists(targetPath))
+                    {
+                        Console.WriteLine($"Error: File '{targetPath}' not found.");
+                        return;
+                    }
+
+                    Regex pattern = new Regex(@"^\s*SET\s+""?\s*LOG_FILE\s*=\s*""?(?<val>.*?)""?\s*$", RegexOptions.IgnoreCase);
+                    string logFile = string.Empty;
+
+                    foreach (string line in File.ReadLines(targetPath))
+                    {
+                        Match match = pattern.Match(line);
+                        if (match.Success)
+                        {
+                            logFile = match.Groups["val"].Value.Trim().Trim('"').Replace('\\', '/');
+                            break;
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(logFile))
+                    {
+                        Console.Write(logFile);
+                    }
+                    else
+                    {
+                        Console.WriteLine("Error: 'SET LOG_FILE' line not found in file.");
+                    }
+                    ]]>
+                </script>
+
+                <!-- Step 4: Read Log File Content and Output formatted JSON using CSX -->
+                <script id="read_log_content" language="csx">
+                    <![CDATA[
+                    using System;
+                    using System.IO;
+                    using System.Text.Json;
+                    using System.Text.Json.Nodes;
+                    using System.Text.Encodings.Web;
+
+                    string batPath = Environment.GetEnvironmentVariable("FilePath");
+                    string rawLogPath = Environment.GetEnvironmentVariable("LOGFILE_RESULTS");
+
+                    if (string.IsNullOrWhiteSpace(rawLogPath))
+                    {
+                        Console.WriteLine("Error: 'LOGFILE_RESULTS' is empty.");
+                        return;
+                    }
+
+                    rawLogPath = rawLogPath.Replace('\\', Path.DirectorySeparatorChar);
+
+                    string resolvedPath = Path.GetFullPath(rawLogPath);
+
+                    if (!File.Exists(resolvedPath) && !string.IsNullOrEmpty(batPath))
+                    {
+                        string batDir = Path.GetDirectoryName(batPath) ?? ".";
+                        resolvedPath = Path.GetFullPath(Path.Combine(batDir, rawLogPath));
+                    }
+
+                    if (!File.Exists(resolvedPath))
+                    {
+                        Console.WriteLine($"Error: Log file not found at '{resolvedPath}'");
+                        return;
+                    }
+
+                    // Normalize CRLF line breaks and replace backslashes to clean up extra escaping
+                    string content = File.ReadAllText(resolvedPath)
+                        .Replace("\r\n", "\n")
+                        .Replace("\r", "")
+                        .Replace('\\', '/');
+
+                    var jsonNode = new JsonObject
+                    {
+                        ["content"] = content,
+                        ["timestamp"] = DateTime.UtcNow.ToString("o"),
+                        ["status"] = "Success"
+                    };
+
+                    // Prevent escaping single quotes to \u0027
+                    var options = new JsonSerializerOptions
+                    {
+                        WriteIndented = false,
+                        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+                    };
+
+                    string jsonString = jsonNode.ToJsonString(options);
+                    Console.WriteLine(jsonString);
+                    ]]>
+                </script>
+            </then>
+            <else>
+                <!-- Step 5: Data up to date fallback message -->
+                <script id="data_uptodate_message" language="csx">
+                    <![CDATA[
+                    using System;
+
+                    Console.WriteLine("Data is up-to-date. No further action required.");
+                    ]]>
+                </script>
+            </else>
+        </if>
+    </scripts>
+</pipeline>

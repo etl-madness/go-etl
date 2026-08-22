@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pipeline>
+    <!-- Pipeline Variables -->
+    <variables>
+        <variable name="FilePath" type="string" value="./examples/csx_example.xml" />
+    </variables>
+
+
+    <databases>
+
+    </databases>
+
+    <scripts>
+
+
+        <script id="cat_file" language="csx" output_variable="FOUND_FILEPATH">
+            <![CDATA[
+                    using System.IO;
+                    using System.Text.Json;
+                    using System.Text.Json.Nodes;
+                    // string fileName = "{{FilePath}}";
+                    string fileName = Environment.GetEnvironmentVariable("FilePath");
+                    if (File.Exists(fileName))
+                    {
+                        string content = File.ReadAllText(fileName);
+                        
+                        var jsonNode = new JsonObject
+                        {
+                            ["content"] = content,
+                            ["timestamp"] = DateTime.UtcNow,
+                            ["status"] = "Success"
+                        };
+                        string jsonString = jsonNode.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+                        Environment.SetEnvironmentVariable("FOUND_FILEPATH", jsonString);
+                        Console.WriteLine(jsonString);
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Error: File '{fileName}' not found.");
+                    }
+            ]]>
+        </script>
+        <script id="get_var" language="csx">
+            <![CDATA[
+                    using System.IO;
+                    using System.Text.Json;
+                    using System.Text.Json.Nodes;
+                    string foundFilePathContent = Environment.GetEnvironmentVariable("FOUND_FILEPATH");
+                    if (!string.IsNullOrEmpty(foundFilePathContent) )
+                    {
+                        var jsonNode = new JsonObject
+                        {
+                            ["content"] = "Found variable 'FOUND_FILEPATH' with content: ",
+                            ["timestamp"] = DateTime.UtcNow,
+                            ["status"] = "Success"
+                        };
+                        string jsonString = jsonNode.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+                        Console.WriteLine(jsonString);
+                    }
+                    else
+                    {
+                        var jsonNode = new JsonObject
+                        {
+                            ["content"] = "Variable 'FOUND_FILEPATH' not found.",
+                            ["timestamp"] = DateTime.UtcNow,
+                            ["status"] = "Success"
+                        };
+                        string jsonString = jsonNode.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+                        Console.WriteLine(jsonString);
+                    }
+            ]]>
+        </script>
+    </scripts>
+</pipeline>

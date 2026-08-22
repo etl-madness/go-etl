@@ -1,0 +1,15 @@
+/* ----------------- AutoSys JIL Definition: CMD Job ----------------- */
+
+insert_job: csx_logfile_example
+job_type: CMD
+command: "examples\BAT\csx_logfile_example.bat"
+machine: win_app_server_01
+owner: domain_etl_svc@corp
+permission: gx,ge
+date_conditions: 1
+days_of_week: mon,tue,wed,thu,fri
+start_times: "06:00"
+description: "Executes the daily Go-Flow ETL CSX log processing pipeline"
+std_out_file: "examples\LOGS\%AUTO_JOB_NAME%.log"
+std_err_file: "examples\LOGS\%AUTO_JOB_NAME%.log"
+alarm_if_fail: 1
